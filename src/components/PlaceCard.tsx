@@ -1,3 +1,4 @@
+import PlaceImage from './PlaceImage';
 import React from 'react';
 import { Place } from '../types';
 import { MapPin, Heart, ChevronRight } from 'lucide-react';
@@ -34,10 +35,6 @@ export default function PlaceCard({
     icon: '📍',
   };
 
-  const allowsLarge = place.petPolicy.allowedSizes.includes('large');
-  const allowsIndoor = place.petPolicy.indoorAllowed;
-  const allowsOutdoor = place.petPolicy.outdoorAllowed;
-
   const handleCardClick = () => {
     onSelect(place);
   };
@@ -61,8 +58,8 @@ export default function PlaceCard({
     >
       {/* 1. Left Thumbnail Section (가로형 고정 썸네일 - 절대 압축되지 않음) */}
       <div className="relative w-28 sm:w-32 h-[126px] sm:h-[132px] shrink-0 flex-shrink-0 self-center rounded-xl overflow-hidden bg-slate-100">
-        <img
-          src={place.imageUrl}
+        <PlaceImage
+          place={place}
           alt={place.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           referrerPolicy="no-referrer"
@@ -121,52 +118,10 @@ export default function PlaceCard({
             <span className="truncate">{place.roadAddress || place.address}</span>
           </p>
 
-          {/* 반려동물 동반 관련 정보 배지 (충분한 공간에서 잘리지 않고 선명하게 표출) */}
-          <div className="mt-1.5 flex items-center gap-1 flex-wrap">
-            {/* 체급 조건 */}
-            {allowsLarge ? (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/70 text-[10px] sm:text-[11px] shrink-0 whitespace-nowrap">
-                🐕 대형견 환영
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md font-bold bg-slate-100 text-slate-700 border border-slate-200/70 text-[10px] sm:text-[11px] shrink-0 whitespace-nowrap">
-                🐕 소·중형견
-              </span>
-            )}
-
-            {/* 실내/실외 공간 조건 */}
-            {allowsIndoor && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200/70 text-[10px] sm:text-[11px] shrink-0 whitespace-nowrap">
-                🏡 실내 동반
-              </span>
-            )}
-            {allowsOutdoor && !allowsIndoor && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md font-bold bg-amber-50 text-amber-800 border border-amber-200/70 text-[10px] sm:text-[11px] shrink-0 whitespace-nowrap">
-                🌿 야외 전용
-              </span>
-            )}
-          </div>
-
-          {/* 반려견 요금 및 핵심 편의시설 */}
-          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[10px] sm:text-[11px] text-slate-600">
-            <span className="font-extrabold text-amber-800 bg-amber-50/90 px-1.5 py-0.5 rounded border border-amber-200/60 shrink-0 whitespace-nowrap">
-              💰 {place.petPolicy.petFee ? `${place.petPolicy.petFee.toLocaleString()}원` : '반려견 무료'}
+          <div className="mt-2 flex flex-wrap gap-1">
+            <span className={`rounded-md border px-1.5 py-0.5 text-[10px] sm:text-[11px] font-bold ${place.petInformationStatus === 'KTO_OVERLAY_FOUND' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
+              {place.petInformationLabel}
             </span>
-            {place.amenities.freeParking && (
-              <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-medium shrink-0 whitespace-nowrap">
-                🅿️ 무료주차
-              </span>
-            )}
-            {place.amenities.dogMenu && (
-              <span className="bg-orange-50 text-orange-800 px-1.5 py-0.5 rounded font-bold shrink-0 whitespace-nowrap">
-                ☕ 멍푸치노
-              </span>
-            )}
-            {place.amenities.fencedYard && (
-              <span className="bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded font-bold shrink-0 whitespace-nowrap">
-                🐾 잔디운동장
-              </span>
-            )}
           </div>
         </div>
 

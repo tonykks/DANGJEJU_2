@@ -1,3 +1,4 @@
+import PlaceImage from './PlaceImage';
 import { useState } from 'react';
 import { Place } from '../types';
 import { 
@@ -10,7 +11,6 @@ import {
   Heart, 
   Share2, 
   Check, 
-  Compass, 
   Dog, 
   Sparkles,
   ExternalLink,
@@ -47,7 +47,7 @@ export default function PlaceDetailModal({
     if (navigator.share) {
       navigator.share({
         title: `[댕제주] ${place.name}`,
-        text: `제주 반려견 동반 여행지: ${place.name} (${place.shortDesc})`,
+        text: `제주 관광 장소: ${place.name} (${place.shortDesc})`,
         url: window.location.href,
       }).catch(() => {});
     } else {
@@ -63,8 +63,8 @@ export default function PlaceDetailModal({
       >
         {/* Header Image with Badges */}
         <div className="relative h-56 sm:h-64 w-full overflow-hidden bg-slate-100 flex-shrink-0">
-          <img
-            src={place.imageUrl}
+          <PlaceImage
+            place={place}
             alt={place.name}
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
@@ -107,7 +107,7 @@ export default function PlaceDetailModal({
                 {place.regionName}
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20 backdrop-blur-md">
-                {place.petPolicy.sizeDescription}
+                {place.petInformationLabel}
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
@@ -130,7 +130,7 @@ export default function PlaceDetailModal({
             }`}
           >
             <Dog className="w-4 h-4" />
-            반려견 동반 조건
+            반려동물 정보
           </button>
           <button
             onClick={() => setActiveTab('location')}
@@ -160,91 +160,20 @@ export default function PlaceDetailModal({
         <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
           {activeTab === 'policy' && (
             <div className="space-y-4">
-              {/* Pet Acceptance Matrix */}
-              <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4">
-                <h4 className="text-xs font-bold tracking-wider text-amber-800 uppercase mb-3 flex items-center gap-1.5">
-                  <Dog className="w-4 h-4 text-amber-600" />
-                  견종 체급별 동반 허용 기준
-                </h4>
-                <div className="grid grid-cols-3 gap-2.5 text-center">
-                  <div className={`p-3 rounded-xl border ${
-                    place.petPolicy.allowedSizes.includes('small')
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                      : 'bg-slate-100 border-slate-200 text-slate-400'
-                  }`}>
-                    <div className="font-bold text-sm">소형견</div>
-                    <div className="text-[11px] mt-0.5 font-medium">10kg 이하</div>
-                    <div className="text-xs font-bold mt-1">
-                      {place.petPolicy.allowedSizes.includes('small') ? '✓ 동반가능' : '✕ 불가'}
-                    </div>
-                  </div>
-
-                  <div className={`p-3 rounded-xl border ${
-                    place.petPolicy.allowedSizes.includes('medium')
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                      : 'bg-slate-100 border-slate-200 text-slate-400'
-                  }`}>
-                    <div className="font-bold text-sm">중형견</div>
-                    <div className="text-[11px] mt-0.5 font-medium">10~20kg</div>
-                    <div className="text-xs font-bold mt-1">
-                      {place.petPolicy.allowedSizes.includes('medium') ? '✓ 동반가능' : '✕ 불가'}
-                    </div>
-                  </div>
-
-                  <div className={`p-3 rounded-xl border ${
-                    place.petPolicy.allowedSizes.includes('large')
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                      : 'bg-slate-100 border-slate-200 text-slate-400'
-                  }`}>
-                    <div className="font-bold text-sm">대형견</div>
-                    <div className="text-[11px] mt-0.5 font-medium">20kg 이상</div>
-                    <div className="text-xs font-bold mt-1">
-                      {place.petPolicy.allowedSizes.includes('large') ? '✓ 동반가능' : '✕ 불가'}
-                    </div>
-                  </div>
-                </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                <h4 className="text-sm font-bold text-slate-800">{place.petInformationLabel}</h4>
+                <p className="mt-2 text-sm leading-relaxed text-slate-700">{place.petInformationNotice}</p>
               </div>
-
-              {/* Space & Leash Specifications */}
-              <div className="space-y-3">
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <div className="p-2 rounded-lg bg-white text-slate-700 shadow-xs">
-                    <Compass className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-semibold">공간 이용 규정</div>
-                    <div className="text-sm font-bold text-slate-800 mt-0.5">
-                      {place.petPolicy.spaceDescription}
+              {Boolean(place.petDetails?.length) && (
+                <dl className="space-y-3">
+                  {place.petDetails!.map((detail) => (
+                    <div key={detail.key} className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                      <dt className="text-xs font-bold text-slate-500">{detail.label}</dt>
+                      <dd className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-800">{detail.value}</dd>
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <div className="p-2 rounded-lg bg-white text-slate-700 shadow-xs">
-                    <Dog className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-semibold">리드줄 / 오프리쉬 안내</div>
-                    <div className="text-sm font-bold text-slate-800 mt-0.5">
-                      {place.petPolicy.leashDescription}
-                    </div>
-                  </div>
-                </div>
-
-                {place.petPolicy.petFeeDescription && (
-                  <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                    <div className="p-2 rounded-lg bg-white text-slate-700 shadow-xs">
-                      <Sparkles className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 font-semibold">반려견 입장료 안내</div>
-                      <div className="text-sm font-bold text-slate-800 mt-0.5">
-                        {place.petPolicy.petFeeDescription}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  ))}
+                </dl>
+              )}
             </div>
           )}
 
@@ -256,9 +185,9 @@ export default function PlaceDetailModal({
                   <div className="flex items-start gap-2.5">
                     <MapPin className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-xs text-slate-500 font-semibold">도로명 주소</div>
+                      <div className="text-xs text-slate-500 font-semibold">주소</div>
                       <div className="text-sm font-bold text-slate-800 mt-0.5">
-                        {place.roadAddress}
+                        {place.roadAddress || place.address || '주소 미확인'}
                       </div>
                     </div>
                   </div>
@@ -290,9 +219,9 @@ export default function PlaceDetailModal({
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-slate-400 shrink-0" />
-                    <a href={`tel:${place.contactNumber}`} className="text-xs font-medium text-blue-600 hover:underline">
+                    {place.contactNumber ? <a href={`tel:${place.contactNumber}`} className="text-xs font-medium text-blue-600 hover:underline">
                       {place.contactNumber}
-                    </a>
+                    </a> : <span className="text-xs text-slate-500">연락처 미확인</span>}
                   </div>
                 </div>
               </div>
@@ -323,43 +252,10 @@ export default function PlaceDetailModal({
 
           {activeTab === 'tips' && (
             <div className="space-y-4">
-              {/* Pet Amenities checklist */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
-                  반려견 전용 편의 시설
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
-                  <div className={`p-2 rounded-lg flex items-center gap-2 ${
-                    place.amenities.freeParking ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    <Check className="w-3.5 h-3.5" /> 무료 전용 주차
-                  </div>
-                  <div className={`p-2 rounded-lg flex items-center gap-2 ${
-                    place.amenities.dogMenu ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    <Check className="w-3.5 h-3.5" /> 멍푸치노/강아지간식
-                  </div>
-                  <div className={`p-2 rounded-lg flex items-center gap-2 ${
-                    place.amenities.fencedYard ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    <Check className="w-3.5 h-3.5" /> 펜스 안전 운동장
-                  </div>
-                  <div className={`p-2 rounded-lg flex items-center gap-2 ${
-                    place.amenities.waterBowlProvided ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    <Check className="w-3.5 h-3.5" /> 반려견 식수그릇
-                  </div>
-                  <div className={`p-2 rounded-lg flex items-center gap-2 ${
-                    place.amenities.wasteBagsProvided ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    <Check className="w-3.5 h-3.5" /> 배변봉투/패드 비치
-                  </div>
-                  <div className={`p-2 rounded-lg flex items-center gap-2 ${
-                    place.amenities.photoZone ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    <Check className="w-3.5 h-3.5" /> 반려견 감성 포토존
-                  </div>
-                </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <p>{place.fullDesc}</p>
+                <p className="mt-2 text-xs text-slate-500">편의시설은 아래 제공된 정보와 시설 문의를 통해 확인해 주세요.</p>
+                {!place.petDetails?.length && <p className="mt-2">{place.petInformationNotice}</p>}
               </div>
 
               {/* Recommended Points */}
@@ -367,7 +263,7 @@ export default function PlaceDetailModal({
                 <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/60">
                   <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-amber-600" />
-                    추천 매력 포인트
+                    KTO 제공 정보
                   </h4>
                   <ul className="space-y-1.5 text-xs text-slate-700">
                     {place.recommendedPoints.map((pt, i) => (
@@ -385,7 +281,7 @@ export default function PlaceDetailModal({
                 <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200/60">
                   <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <ShieldAlert className="w-4 h-4 text-rose-600" />
-                    방문 시 주의사항 (필독)
+                    KTO 동반 시 주의사항
                   </h4>
                   <ul className="space-y-1.5 text-xs text-rose-950">
                     {place.cautionNotes.map((note, i) => (
@@ -403,7 +299,7 @@ export default function PlaceDetailModal({
 
         {/* Footer info bar */}
         <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 flex-shrink-0">
-          <span>제주 6팀 「댕제주」 실시간 반려견 동반 데이터</span>
+          <span>제주 6팀 「댕제주」 · KTO 관광 정보</span>
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition-colors"

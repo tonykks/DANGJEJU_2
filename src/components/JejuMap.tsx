@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import PlaceImage from './PlaceImage';
+import { useEffect, useRef, useMemo } from 'react';
 import L from 'leaflet';
 import { Place } from '../types';
-import { ChevronRight, MapPin, Heart } from 'lucide-react';
+import { ChevronRight, MapPin } from 'lucide-react';
 
 interface JejuMapProps {
   places: Place[];
@@ -18,15 +19,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   stay: '#3b82f6',      // blue
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  cafe: '카페',
-  spot: '관광지',
-  food: '음식점',
-  trail: '산책로',
-  stay: '숙소',
-};
-
 export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDetail }: JejuMapProps) {
+  const mappedPlaces = useMemo(() => places.filter((p) => p.coordinates !== null), [places]);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
@@ -82,10 +76,12 @@ export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDe
 
     markersGroup.clearLayers();
 
-    places.forEach((place) => {
+    mappedPlaces.forEach((place) => {
       const isSelected = selectedPlace?.id === place.id;
       const color = CATEGORY_COLORS[place.category] || '#64748b';
 
+      const markerName = document.createElement('span');
+      markerName.textContent = place.name.length > 8 ? place.name.slice(0, 8) + '…' : place.name;
       const customIcon = L.divIcon({
         className: 'custom-jeju-marker',
         html: `
@@ -107,7 +103,7 @@ export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDe
             cursor: pointer;
           ">
             <span style="margin-right: 3px;">🐾</span>
-            <span>${place.name.length > 8 ? place.name.slice(0, 8) + '…' : place.name}</span>
+            <span>${markerName.innerHTML}</span>
           </div>
         `,
         iconSize: [80, 28],
@@ -125,16 +121,16 @@ export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDe
       markersGroup.addLayer(marker);
     });
 
-    if (places.length > 0 && !selectedPlace) {
-      const bounds = L.latLngBounds(places.map((p) => [p.coordinates.lat, p.coordinates.lng]));
+    if (mappedPlaces.length > 0 && !selectedPlace) {
+      const bounds = L.latLngBounds(mappedPlaces.map((p) => [p.coordinates.lat, p.coordinates.lng]));
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
     }
-  }, [places, selectedPlace, onSelectPlace]);
+  }, [mappedPlaces, selectedPlace, onSelectPlace]);
 
   // Pan to selected place smoothly
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !selectedPlace) return;
+    if (!map || !selectedPlace?.coordinates) return;
 
     map.flyTo([selectedPlace.coordinates.lat, selectedPlace.coordinates.lng], 13, {
       duration: 0.8,
@@ -145,6 +141,11 @@ export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDe
     <div className="relative w-full h-full min-h-[460px] rounded-3xl overflow-hidden shadow-md border border-slate-200/90 bg-slate-50">
       <div id="jeju-map-container" ref={mapContainerRef} className="w-full h-full" />
 
+      {places.length > mappedPlaces.length && (
+        <div className="absolute top-3 left-3 z-[1000] max-w-[240px] rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-[11px] text-slate-600">
+          좌표 확인이 필요한 {places.length - mappedPlaces.length}곳은 목록에서 확인할 수 있습니다.
+        </div>
+      )}
       {/* Map Legend: Bottom-Left Vertical List */}
       <div className="absolute bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 shadow-lg min-w-[110px] sm:min-w-[120px]">
         <div className="flex items-center gap-1.5 pb-1.5 mb-1.5 border-b border-slate-100">
@@ -182,8 +183,8 @@ export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDe
           className="absolute top-4 right-4 left-4 sm:left-auto sm:w-80 md:w-88 z-[1000] bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-xl border border-amber-200 cursor-pointer hover:border-amber-400 transition-all group animate-in fade-in slide-in-from-top-3 duration-200"
         >
           <div className="flex items-center gap-3">
-            <img
-              src={selectedPlace.imageUrl}
+            <PlaceImage
+              place={selectedPlace}
               alt={selectedPlace.name}
               className="w-14 h-14 rounded-xl object-cover shrink-0"
               referrerPolicy="no-referrer"
@@ -197,7 +198,7 @@ export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDe
                 {selectedPlace.name}
               </h4>
               <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                {selectedPlace.shortDesc}
+                {selectedPlace.petInformationLabel}
               </p>
             </div>
             <div className="w-7 h-7 rounded-full bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center text-amber-600 shrink-0 transition-colors">

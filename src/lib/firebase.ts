@@ -18,7 +18,7 @@ let auth: Auth | null = null;
 let db: Firestore | null = null;
 let configurationError: string | null = null;
 
-// Keep the place catalog usable before the Owner supplies the web app config.
+// Missing configuration is surfaced by the catalog error/retry UI and auth notices.
 if (!hasConfig) {
   configurationError = '로그인 서비스를 준비 중입니다. 잠시 후 다시 이용해 주세요.';
 } else {

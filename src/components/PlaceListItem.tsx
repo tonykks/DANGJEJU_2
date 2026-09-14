@@ -1,6 +1,7 @@
+import PlaceImage from './PlaceImage';
 import React from 'react';
 import { Place } from '../types';
-import { MapPin, Heart, ChevronRight, Car, Coffee, Trees } from 'lucide-react';
+import { MapPin, Heart, ChevronRight } from 'lucide-react';
 
 interface PlaceListItemProps {
   key?: string;
@@ -33,9 +34,6 @@ export default function PlaceListItem({
     badgeClass: 'bg-slate-100 text-slate-800',
   };
 
-  const allowsLarge = place.petPolicy.allowedSizes.includes('large');
-  const allowsIndoor = place.petPolicy.indoorAllowed;
-
   const handleClick = () => {
     onSelect(place);
     onOpenDetail(place);
@@ -53,11 +51,12 @@ export default function PlaceListItem({
     >
       {/* 1. Slim Square Thumbnail */}
       <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200/60">
-        <img
-          src={place.imageUrl}
+        <PlaceImage
+          place={place}
           alt={place.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           referrerPolicy="no-referrer"
+          loading="lazy"
         />
         <span
           className={`absolute bottom-0 inset-x-0 text-center py-0.2 text-[9px] font-black backdrop-blur-xs ${cat.badgeClass}`}
@@ -81,49 +80,12 @@ export default function PlaceListItem({
 
         <p className="text-[11px] text-slate-500 line-clamp-1 font-medium mt-0.5">
           {place.shortDesc}
+          <span className="md:hidden"> · {place.petInformationLabel}</span>
         </p>
       </div>
 
-      {/* 3. Slim Pet Policy Badges */}
-      <div className="hidden md:flex items-center gap-1.5 shrink-0">
-        {allowsLarge ? (
-          <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-            🐕 대형견
-          </span>
-        ) : (
-          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-600">
-            소·중형견
-          </span>
-        )}
-
-        {allowsIndoor ? (
-          <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200/60">
-            🏡 실내
-          </span>
-        ) : (
-          <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
-            🌿 야외
-          </span>
-        )}
-      </div>
-
-      {/* 4. Key Amenity (Free parking, Dog menu, Yard) */}
-      <div className="hidden lg:flex items-center gap-1.5 shrink-0 text-[11px]">
-        {place.amenities.dogMenu && (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-bold border border-amber-200/50">
-            <Coffee className="w-2.5 h-2.5 text-amber-600" /> 멍푸치노
-          </span>
-        )}
-        {place.amenities.fencedYard && (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200/50">
-            <Trees className="w-2.5 h-2.5 text-emerald-600" /> 잔디
-          </span>
-        )}
-        {place.amenities.freeParking && !place.amenities.dogMenu && (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
-            <Car className="w-2.5 h-2.5 text-slate-400" /> 주차
-          </span>
-        )}
+      <div className="hidden md:flex items-center shrink-0">
+        <span className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${place.petInformationStatus === 'KTO_OVERLAY_FOUND' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>{place.petInformationLabel}</span>
       </div>
 
       {/* 5. Quick Actions: Bookmark & Chevron */}

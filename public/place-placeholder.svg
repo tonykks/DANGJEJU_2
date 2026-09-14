@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
+  <rect width="640" height="480" fill="#e9e7e2"/>
+  <g fill="none" stroke="#98958e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="260" y="160" width="120" height="96" rx="12"/>
+    <circle cx="293" cy="190" r="10"/>
+    <path d="m270 245 35-32 24 20 23-28 18 21"/>
+  </g>
+  <text x="320" y="307" text-anchor="middle" fill="#6d6a65" font-family="sans-serif" font-size="22">사진 미제공</text>
+</svg>

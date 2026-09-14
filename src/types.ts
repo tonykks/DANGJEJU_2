@@ -33,7 +33,7 @@ export type SpacePolicy = 'all' | 'indoor' | 'indoor_carrier' | 'outdoor_only';
 export interface PetPolicy {
   allowedSizes: ('small' | 'medium' | 'large')[];
   sizeDescription: string; // e.g. "대형견(25kg)까지 전견종 가능" or "10kg 미만 소형견만 가능"
-  spacePolicy: 'indoor_free' | 'indoor_carrier' | 'outdoor_terrace_only' | 'outdoor_and_indoor';
+  spacePolicy: 'unknown' | 'indoor_free' | 'indoor_carrier' | 'outdoor_terrace_only' | 'outdoor_and_indoor';
   spaceDescription: string; // e.g. "실내 1층 목줄 착용 시 동반 가능, 2층은 노펫존"
   leashRequired: boolean;
   leashDescription: string; // e.g. "리드줄(2m 이내) 필수 착용"
@@ -72,13 +72,18 @@ export interface Place {
   coordinates: {
     lat: number;
     lng: number;
-  };
+  } | null;
   petPolicy: PetPolicy;
   amenities: PlaceAmenities;
   cautionNotes: string[];
   recommendedPoints: string[];
   imageUrl: string;
   tags: string[];
+  petInformationStatus?: 'KTO_OVERLAY_FOUND' | 'UNKNOWN';
+  petInformationLabel?: string;
+  petInformationNotice?: string;
+  petDetails?: { key: string; label: string; value: string }[];
+  imageFallbackUrls?: string[];
 }
 
 export interface FilterState {

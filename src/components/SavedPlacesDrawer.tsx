@@ -1,3 +1,4 @@
+import PlaceImage from './PlaceImage';
 import { Place } from '../types';
 import { X, Heart, MapPin, Trash2, ChevronRight } from 'lucide-react';
 
@@ -39,7 +40,7 @@ export default function SavedPlacesDrawer({
           <div className="flex items-center gap-2">
             <Heart className="w-5 h-5 text-rose-500 fill-current" />
             <h3 className="font-bold text-base text-slate-800">
-              찜한 반려견 여행지 ({savedPlaces.length})
+              찜한 제주 관광 장소 ({savedPlaces.length})
             </h3>
           </div>
           <button
@@ -79,8 +80,8 @@ export default function SavedPlacesDrawer({
                 }}
                 className="p-3 rounded-xl border border-slate-200 hover:border-amber-400 hover:shadow-xs transition-all cursor-pointer bg-white flex gap-3 items-center group"
               >
-                <img
-                  src={place.imageUrl}
+                <PlaceImage
+                  place={place}
                   alt={place.name}
                   className="w-16 h-16 rounded-lg object-cover shrink-0"
                   referrerPolicy="no-referrer"
@@ -94,7 +95,7 @@ export default function SavedPlacesDrawer({
                     {place.name}
                   </h4>
                   <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {place.petPolicy.sizeDescription}
+                    {place.petInformationLabel}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">

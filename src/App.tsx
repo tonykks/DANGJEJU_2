@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { PLACES, REGIONS } from './data/places';
+import { REGIONS } from './data/places';
 import { Place, RegionId, PlaceCategory, EventBanner } from './types';
+import { usePlacesCatalog } from './hooks/usePlacesCatalog';
+import { savedCatalogPlaces } from './lib/placeAdapter';
 import Header from './components/Header';
 import PlaceCard from './components/PlaceCard';
 import PlaceListItem from './components/PlaceListItem';
@@ -32,6 +34,8 @@ const CATEGORIES: { id: PlaceCategory; name: string; icon: any }[] = [
 ];
 
 export default function App() {
+  const { catalog, status: catalogStatus, retry: retryCatalog } = usePlacesCatalog();
+  const places = useMemo(() => catalog?.places ?? [], [catalog]);
   // Loading screen state
   const [isLoading, setIsLoading] = useState(true);
 
@@ -60,7 +64,7 @@ export default function App() {
 
   // Filter places based on 5 regions & categories
   const filteredPlaces = useMemo(() => {
-    return PLACES.filter((place) => {
+    return places.filter((place) => {
       if (selectedRegion !== 'all' && place.region !== selectedRegion) {
         return false;
       }
@@ -69,11 +73,11 @@ export default function App() {
       }
       return true;
     });
-  }, [selectedRegion, selectedCategory]);
+  }, [places, selectedRegion, selectedCategory]);
 
   const savedPlacesList = useMemo(() => {
-    return PLACES.filter((p) => savedPlaceIds.includes(p.id));
-  }, [savedPlaceIds]);
+    return savedCatalogPlaces(places, savedPlaceIds);
+  }, [places, savedPlaceIds]);
 
   const handleOpenDetail = (place: Place) => {
     setSelectedPlace(place);
@@ -125,7 +129,7 @@ export default function App() {
 
       {/* Header */}
       <Header
-        savedCount={savedPlaceIds.length}
+        savedCount={savedPlacesList.length}
         onOpenSaved={() => setIsSavedDrawerOpen(true)}
         onReloadLoading={() => setIsLoading(true)}
         onResetHome={handleResetHome}
@@ -159,6 +163,19 @@ export default function App() {
           <EventBannerSlider onBannerClick={(banner) => setActiveBanner(banner)} />
         </section>
 
+        {catalogStatus === 'loading' && (
+          <div role="status" aria-live="polite" className="rounded-2xl border border-amber-200 bg-white p-6 text-sm font-bold text-slate-700">
+            제주 관광 장소를 불러오는 중입니다…
+          </div>
+        )}
+        {catalogStatus === 'error' && (
+          <div role="alert" className="rounded-2xl border border-rose-200 bg-white p-6 text-sm text-slate-700">
+            <p className="font-bold">장소 정보를 불러오지 못했습니다.</p>
+            <p className="mt-1">연결 상태를 확인한 후 다시 시도해 주세요.</p>
+            <button onClick={retryCatalog} className="mt-3 rounded-xl bg-amber-500 px-4 py-2 font-bold text-white">장소 다시 불러오기</button>
+          </div>
+        )}
+        {catalogStatus === 'ready' && <>
         {/* 3. 여행 지역 선택 (전체, 제주시, 서귀포시, 동부, 서부) */}
         <section className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-amber-100/90 shadow-2xs">
           <div className="flex items-center justify-between mb-3">
@@ -179,8 +196,8 @@ export default function App() {
             {REGIONS.map((reg) => {
               const isActive = selectedRegion === reg.id;
               const count = reg.id === 'all'
-                ? PLACES.length
-                : PLACES.filter((p) => p.region === reg.id).length;
+                ? places.length
+                : places.filter((p) => p.region === reg.id).length;
 
               return (
                 <button
@@ -263,7 +280,8 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <p className="text-xs sm:text-sm font-bold text-slate-700">
-              <span className="text-amber-600 font-black">{filteredPlaces.length}곳</span>의 반려견 동반 장소
+              제주 관광 장소 <span className="text-amber-600 font-black">{filteredPlaces.length}곳</span>
+              <span className="ml-2 text-slate-500">반려동물 정보 확인 {filteredPlaces.filter((p) => p.petInformationStatus === 'KTO_OVERLAY_FOUND').length}곳</span>
             </p>
           </div>
 
@@ -320,7 +338,7 @@ export default function App() {
                 <div className="lg:hidden bg-slate-900 text-white px-4 py-2.5 text-xs font-black flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                    <span>제주 반려견 여행 지도 ({filteredPlaces.length}곳)</span>
+                    <span>제주 관광 장소 지도 ({filteredPlaces.length}곳)</span>
                   </div>
                   <button
                     onClick={() => cardSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
@@ -348,7 +366,7 @@ export default function App() {
                 <div className="hidden lg:flex items-center justify-between pb-2.5 mb-2 border-b border-slate-200/80 px-1 shrink-0">
                   <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
                     <Dog className="w-4 h-4 text-amber-500" />
-                    <span>추천 여행지 <strong className="text-amber-600">{filteredPlaces.length}곳</strong></span>
+                    <span>관광 장소 <strong className="text-amber-600">{filteredPlaces.length}곳</strong></span>
                   </div>
                   <span className="text-[11px] font-semibold text-slate-400">스크롤하여 둘러보기</span>
                 </div>
@@ -357,7 +375,7 @@ export default function App() {
                 <div className="lg:hidden flex items-center justify-between px-3 py-2 bg-amber-50/90 rounded-2xl border border-amber-200/70 text-xs font-bold shadow-2xs mb-3 shrink-0">
                   <span className="flex items-center gap-1.5 text-slate-700">
                     <Dog className="w-4 h-4 text-amber-500" />
-                    <span>추천 명소 <strong>{filteredPlaces.length}곳</strong></span>
+                    <span>관광 장소 <strong>{filteredPlaces.length}곳</strong></span>
                   </span>
                   <button
                     onClick={handleToggleMobileMap}
@@ -450,10 +468,11 @@ export default function App() {
           )}
         </div>
 
+        </>}
       </main>
 
       {/* 모바일 전용 플로팅 지도/목록 스위처 버튼 */}
-      {viewMode === 'split' && (
+      {catalogStatus === 'ready' && viewMode === 'split' && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 lg:hidden pointer-events-none">
           <button
             onClick={handleToggleMobileMap}
@@ -537,12 +556,12 @@ export default function App() {
         onClose={() => setIsSavedDrawerOpen(false)}
         savedPlaces={savedPlacesList}
         isSignedIn={Boolean(user)}
-        isLoading={authLoading || favoritesLoading}
+        isLoading={authLoading || favoritesLoading || catalogStatus === 'loading'}
         authBusy={authBusy}
-        error={favoritesError}
+        error={favoritesError ?? (catalogStatus === 'error' ? '장소 정보를 불러오지 못했습니다.' : null)}
         pendingIds={pendingIds}
         onLogin={login}
-        onRetry={refreshFavorites}
+        onRetry={() => { refreshFavorites(); if (catalogStatus === 'error') retryCatalog(); }}
         onRemove={toggleSavePlace}
         onSelect={(p) => {
           setSelectedPlace(p);

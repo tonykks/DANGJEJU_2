@@ -16,9 +16,16 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
     }
 
-    // The place catalog stays in src/data/places.ts. No public DB writes.
-    match /places/{document=**} {
-      allow read, write: if false;
+    match /places/{placeId} {
+      allow read: if true;
+      allow write: if false;
+
+      // Catalog provenance only under places/{placeId}/sources/{sourceId}.
+      // No recursive /{path=**}/sources rule: unrelated `sources` collections stay denied.
+      match /sources/{sourceId} {
+        allow read: if true;
+        allow write: if false;
+      }
     }
 
     // Includes user profile documents and any unimplemented collections.
