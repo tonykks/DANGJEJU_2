@@ -99,12 +99,11 @@ test('invalid document identities fail rather than silently changing favorite ID
   assert.throws(() => adaptPlace(place(undefined, { placeId: 'kto-1' })), /Invalid catalog/);
 });
 
-test('catalog loads places first then deterministic sources; rejects partial loads; retry succeeds', async () => {
+test('catalog joins two bulk reads; rejects incomplete loads; explicit retry succeeds', async () => {
   let placeReads = 0, sourceReads = 0, fail = true;
   const readPlaces = async () => { placeReads++; return [place(), place('kto-2')]; };
-  const readSourcesForPlaces = async (places: CatalogDocument[]) => {
+  const readSourcesForPlaces = async () => {
     sourceReads++;
-    assert.equal(places.length, 2);
     if (fail) throw new Error('permission-denied');
     return [source(), source('kto-2', { contentTypeId: '12' })];
   };

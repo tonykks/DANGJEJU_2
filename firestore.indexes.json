@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "sources",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "source", "order": "ASCENDING" },
+        { "fieldPath": "placeId", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

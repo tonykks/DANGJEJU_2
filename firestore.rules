@@ -20,12 +20,19 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
 
-      // Catalog provenance only under places/{placeId}/sources/{sourceId}.
-      // No recursive /{path=**}/sources rule: unrelated `sources` collections stay denied.
+      // Preserve the existing public reads of canonical catalog provenance.
       match /sources/{sourceId} {
         allow read: if true;
         allow write: if false;
       }
+    }
+
+    // Collection-group reads for catalog join. Client queries MUST constrain
+    // source == 'KTO' and placeId to values matching this regex (rules ≠ filters).
+    match /{path=**}/sources/{sourceId} {
+      allow read: if resource.data.source == 'KTO'
+        && resource.data.placeId.matches('^kto-[0-9]+$');
+      allow write: if false;
     }
 
     // Includes user profile documents and any unimplemented collections.
