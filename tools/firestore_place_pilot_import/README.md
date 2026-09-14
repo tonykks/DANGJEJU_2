@@ -1,6 +1,6 @@
-# Firestore Place Stage 1 Pilot
+# Firestore Place Import — Stage 1 Pilot / Stage 2 Full
 
-`dangjeju` 프로젝트의 `(default)` Firestore에 고정된 Place 20건과 Source 20건을 적재한다. 앱과 독립된 Python 도구다. 전체 2,126건을 적재하는 옵션은 없다.
+`dangjeju` 프로젝트의 `(default)` Firestore에 적재하는 앱과 독립된 Python 도구다. `import_pilot.py`는 고정된 Place 20건과 Source 20건만 적재한다. `import_full.py`는 같은 변환 함수를 사용해 지정 JOIN CSV의 모든 실제 행을 적재한다. 아래 Stage 1 절차는 그대로 유지하며, Stage 2 절차는 문서 마지막에 있다.
 
 ## 실행
 
@@ -38,7 +38,7 @@ python -m unittest discover -s tools/firestore_place_pilot_import -p test_import
 
 ## 선택과 원천 추적
 
-원천은 `private_probe/20260911T143232Z/tables/jeju_pet_join.csv`다. SHA-256, 2,126행, 중복 없는 문자열 contentId, Y 330/N 1,796, JOIN 일관성을 검증한다. CSV 변경 시 중단한다.
+원천은 `private_probe/20260911T143232Z/tables/jeju_pet_join.csv`다. SHA-256, 중복 없는 문자열 contentId, Y/N과 JOIN 일관성을 검증한다. 행 수와 Y/N 수는 CSV를 읽어 계산한다. 현재 원천은 2,126행, Y 330/N 1,796이며 이 수치를 적재 목표로 강제하지 않는다. CSV checksum 변경 시 중단한다.
 
 먼저 스키마 §8의 6개 contentId를 포함했다. 나머지는 Y/N 각각 10건이 될 때까지 그룹 내 유형 수, 행정시 수, 행정시/유형 조합 수를 적은 순서로 비교하고 숫자 contentId로 동률을 해소해 선택했다. 선택 결과는 코드의 `PILOT_IDS`와 `PILOT_MANIFEST.json`으로 고정했다. 매번 재추첨하지 않는다. 제주시/서귀포시 각 10건, 7개 KTO 유형을 포함하며 모집단 비율을 대표하는 통계 표본은 아니다. 여기서 known은 KTO Pet 오버레이의 존재만 뜻한다.
 
@@ -70,3 +70,61 @@ CSV에 없는 `lclsSystm1/2/3`, `mlevel`은 같은 수집 실행의 `raw/areaBas
 결과 보고 실패가 commit 이후 발생해도 자동 rollback/delete는 하지 않는다. 새 보고서 이름으로 `--verify`하여 현재 상태부터 확인한다. 성공한 commit 뒤에 count가 늘어난 경우에도 추가 적재나 삭제로 수치를 억지로 맞추지 않는다.
 
 `private_probe/`는 이 저장소의 기존 로컬 ignore 대상이다. Manifest와 검증 산출물은 로컬에 남는다. Commit/Push는 Geni/Owner가 검토 후 담당한다.
+
+## Stage 2 전체 가져오기
+
+별도 entry `import_full.py`의 기본 범위는 전체 CSV다. `--full`은 같은 범위를 명시하는 선택적 플래그다. `build_plan(full=True)`가 Stage 1과 동일한 Place/Source 변환을 사용하며 CSV 레코드 순서와 raw 참조, 원천 hash를 보존한다. 숫자 contentId 순서로 처리하되 같은 이름/주소를 병합하지 않는다. Full manifest와 Stage 1 manifest는 따로 보관한다. 파일럿 manifest 및 기존 40개 의미 payload와의 동일성도 unit test에서 검사한다.
+
+결과는 로컬 `private_probe/firestore_place_full_import/`에만 저장한다. 기존 SDK/venv와 ADC를 사용하므로 새 키/환경 파일이나 앱 의존성 변경이 필요 없다. 환경 변수 `GOOGLE_APPLICATION_CREDENTIALS` 또는 `FIRESTORE_EMULATOR_HOST`가 존재하면 빈 값이어도 중단한다. 서비스 계정 키 기반 ADC도 거부한다.
+
+```powershell
+# Offline 계획 생성. 기존 manifest/report는 덮어쓰지 않는다.
+& tools/firestore_place_pilot_import/.venv/Scripts/python.exe tools/firestore_place_pilot_import/import_full.py --dry-run --write-manifest --report-name DRY_RUN.json
+
+# 1. 읽기 전용 favorites 기준선
+& tools/firestore_place_pilot_import/.venv/Scripts/python.exe tools/firestore_place_pilot_import/import_full.py --favorites-before
+
+# 2–3. 실제 전체 적재 및 재실행
+& tools/firestore_place_pilot_import/.venv/Scripts/python.exe tools/firestore_place_pilot_import/import_full.py --apply --report-name IMPORT_1.json
+& tools/firestore_place_pilot_import/.venv/Scripts/python.exe tools/firestore_place_pilot_import/import_full.py --apply --report-name IMPORT_2.json
+
+# 4. 동일 형식 스냅샷 및 byte/구조 비교
+& tools/firestore_place_pilot_import/.venv/Scripts/python.exe tools/firestore_place_pilot_import/import_full.py --favorites-after
+
+# 5. 전체 문서 재조회 및 A–J/cross-run 검증
+& tools/firestore_place_pilot_import/.venv/Scripts/python.exe tools/firestore_place_pilot_import/import_full.py --verify --report-name VERIFY_FINAL.json
+
+# 6. 파일럿과 전체 import 회귀 테스트
+& tools/firestore_place_pilot_import/.venv/Scripts/python.exe -m unittest discover -s tools/firestore_place_pilot_import -p 'test_import*.py' -v
+
+# 7. 선택적 앱 회귀 검사
+npm run lint
+npm run build
+node --import tsx --test tests/favoritesSession.test.ts
+```
+
+### Favorites 증거
+
+`collection_group('favorites').stream()`을 읽기 전용으로 실행한다. `users/{uid}/favorites/{placeId}` 경로, uid, placeId, createdAt, 전체 필드 키와 추가 필드 키 목록을 정렬해 보관한다. 추가 필드의 실제 값은 저장하지 않고, 원래 전체 문서의 타입을 구분한 SHA-256을 보관한다. 이메일 평문은 기록하지 않는다. uid는 로컬 비교 증거에만 있으며 stdout에 출력하지 않는다.
+
+`createdAt`은 seconds/nanos로 표현한다. Firestore는 [시각을 마이크로초 정밀도로 저장](https://firebase.google.com/docs/firestore/manage-data/data-types)한다. Python SDK snapshot의 deepcopy가 `nanosecond=0`으로 돌려주는 경우에도 datetime의 microseconds를 사용해 저장 정밀도를 보존한다. 직접 받은 나노초 속성이 있으면 함께 보존한다.
+
+BEFORE/AFTER 파일에는 실행 시각처럼 매번 달라지는 필드를 넣지 않아 원래 favorites가 같으면 파일 bytes도 동일하다. 전체 문서 집합 fingerprint는 경로/uid/placeId와 원문 문서 digest를 포함한다. `FAVORITES_COMPARE.json`은 개수, fingerprint, byte/구조 동등성을 기록한다. 다른 사용자의 동시 favorites 변경도 FAIL로 표시하며 importer가 원인이라고 단정하거나 원래 값으로 되돌리지 않는다.
+
+### 청크·재시도·충돌
+
+기본 200개 문서(Place/Source 100쌍), 마지막은 남은 쌍을 처리한다. `--chunk-docs`는 짝수 2–200만 허용한다. 모든 Place/Source 쌍의 ID와 쓰기 경로를 사전에 검사하며, pair는 같은 트랜잭션에 포함된다. JSON 기준 청크 6 MiB/개별 문서 750 KiB의 보수적 크기 제한도 검사한다.
+
+첫 쓰기 전에 모든 기존 대상 문서를 읽고 의미 데이터와 필수 시각을 검사한다. 각 청크도 트랜잭션 안에서 다시 읽고 검사한 뒤 `set(merge=True)`한다. 확인된 정책/추가 필드/출처 변경 등 충돌은 중단 사유다. 기존 `createdAt`은 보존하고 `updatedAt`/`importedAt`은 서버 시각으로 갱신한다. 다른 Source를 삭제하지 않는다.
+
+SDK 트랜잭션의 ABORTED 재시도는 최대 3회다. 별도로 ServiceUnavailable, DeadlineExceeded, InternalServerError, ResourceExhausted는 최대 3회 새 트랜잭션으로 재시도하며 대기 시간은 1/2초다. 상세 동작은 [Firestore 트랜잭션 문서](https://firebase.google.com/docs/firestore/manage-data/transactions)를 따른다. 커밋 후 응답 유실에도 같은 ID/의미값을 다시 쓰므로 중복 생성 없이 createdAt을 보존한다. 생성 수는 마지막 시도의 반환값이 아닌 실행 전후 inventory 차이로 계산한다. `setOperations`는 논리 대상 수이며 재시도로 시각 쓰기가 반복될 수 있다.
+
+각 실행의 `*_JOURNAL.jsonl`에 청크 시작/응답 확인/재시도 상태를 즉시 flush/fsync한다. 청크 사이에는 원자성이 없다. 실패/강제 종료 시 앞 청크나 응답을 받지 못한 청크가 이미 저장되어 있을 수 있다. 자동 rollback/delete를 하지 않는다. 문제를 해결한 뒤 새 `--report-name RECOVERY_1.json`으로 같은 `--apply`를 재실행한다. 재실행 역시 전체 충돌 검사부터 수행하며 중복을 만들지 않는다. journal은 상태 증거이지 성공 문서를 무조건 건너뛰는 체크포인트가 아니다.
+
+### 최종 검증 A–J
+
+`--verify`는 전체 Places와 Source collection-group을 읽고 모든 대상 payload 및 ID 집합을 CSV 계획과 대조한다. A=원천 실제 행/해시, B=ID/전체 수, C=Y/N 상태, D=15개 TriState UNKNOWN, E=Source identity/provenance/원문, F=동명이인 별도 문서·대표 sample, G=시각 보존/갱신, H=재실행 무증가, I=favorites 동등, J=보호 파일 해시다.
+
+이 완료 검증은 성공한 `IMPORT_1.json`, `IMPORT_2.json`, favorites 세 파일과 `PROTECTED_FILES_BEFORE.json`을 필요로 한다. 보호 기준선은 실행 전에 보호 대상 상대 경로→SHA-256 JSON으로 별도 기록한다. 실패한 import의 현재 상태만 확인하려는 `--verify`는 완료 조건이 부족하면 FAIL 보고서를 남기며 쓰지는 않는다. 증거 파일을 덮어쓰거나 실패를 PASS로 바꾸지 않는다.
+
+각 apply의 마커는 `HANK_FULL_APPLIED`, 읽기 전용 검증은 `HANK_FULL_VERIFIED`다. 요청한 전체 작업 완료 마커 `HANK_FULL_DONE places=... sources=... known=... unknown=... favorites_unchanged=true`는 favorites 비교·A–J 검증·unit/app 검사 결과까지 확인한 후 출력한다.

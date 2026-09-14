@@ -134,8 +134,7 @@ def load_rows():
                 "physicalLineStart": previous_line + 1, "physicalLineEnd": reader.line_num,
             }
             previous_line = reader.line_num
-    require(len(rows) == 2126, "Expected exactly 2,126 source rows")
-    require(Counter(v["row"]["has_pet"] for v in rows.values()) == {"Y": 330, "N": 1796}, "Source counts changed")
+    require(bool(rows), "Source CSV is empty")
     return rows
 
 
@@ -143,25 +142,28 @@ def load_supplement(selected_ids):
     result = {}
     for path in sorted(RAW_DIR.glob("areaBasedList2_ldong50_p*.json")):
         raw = json.loads(path.read_text(encoding="utf-8-sig"))
+        raw_sha256 = sha256(path)
         require(raw["response"]["header"]["resultCode"] == "0000", "Failed raw API response")
         for index, item in enumerate(raw["response"]["body"]["items"]["item"]):
             cid = str(item["contentid"])
             if cid in selected_ids:
                 require(cid not in result, "Duplicate selected contentId in raw files")
                 result[cid] = (item, {
-                    "path": path.relative_to(ROOT).as_posix(), "sha256": sha256(path),
+                    "path": path.relative_to(ROOT).as_posix(), "sha256": raw_sha256,
                     "jsonPointer": f"/response/body/items/item/{index}",
                 })
     require(set(result) == set(selected_ids), "Raw supplement missing for selected place")
     return result
 
 
-def build_plan():
-    require(len(PILOT_IDS) == PILOT_SIZE and len(set(PILOT_IDS)) == PILOT_SIZE, "Pilot must contain exactly 20 unique IDs")
+def build_plan(*, full=False):
+    if not full:
+        require(len(PILOT_IDS) == PILOT_SIZE and len(set(PILOT_IDS)) == PILOT_SIZE, "Pilot must contain exactly 20 unique IDs")
     rows = load_rows()
-    supplemental = load_supplement(set(PILOT_IDS))
+    selected_ids = sorted(rows, key=int) if full else PILOT_IDS
+    supplemental = load_supplement(set(selected_ids))
     entries, documents = [], {}
-    for cid in PILOT_IDS:
+    for cid in selected_ids:
         metadata = rows[cid]
         row = metadata["row"]
         raw, raw_ref = supplemental[cid]
@@ -178,7 +180,7 @@ def build_plan():
             "petInformationStatus": status, "lDongSignguCd": row["lDongSignguCd"],
             "contentTypeId": row["contenttypeid"], "placePath": place_path,
             "sourcePath": source_path,
-            "reason": SAMPLE_REASONS.get(cid, "Diversify underrepresented content type, city, and city/type pair; numeric contentId tie breaker."),
+            "reason": "Every source CSV record; no name/address merge." if full else SAMPLE_REASONS.get(cid, "Diversify underrepresented content type, city, and city/type pair; numeric contentId tie breaker."),
             **{k: metadata[k] for k in ("csvRecord", "physicalLineStart", "physicalLineEnd")},
             "supplementalRawReference": raw_ref,
         }
@@ -230,17 +232,22 @@ def build_plan():
         "cities": dict(sorted(Counter(e["lDongSignguCd"] for e in entries).items())),
         "contentTypes": dict(sorted(Counter(e["contentTypeId"] for e in entries).items())),
     }
-    require(summary["petKnown"] == summary["petUnknown"] == 10, "Expected 10 known and 10 UNKNOWN")
-    require(summary["cities"] == {"110": 10, "130": 10}, "Expected balanced cities")
-    require(set(summary["contentTypes"]) == {"12", "14", "15", "28", "32", "38", "39"}, "Expected all seven types")
+    if not full:
+        require(summary["petKnown"] == summary["petUnknown"] == 10, "Expected 10 known and 10 UNKNOWN")
+        require(summary["cities"] == {"110": 10, "130": 10}, "Expected balanced cities")
+        require(set(summary["contentTypes"]) == {"12", "14", "15", "28", "32", "38", "39"}, "Expected all seven types")
     manifest = {
         "schemaVersion": 1, "pilot": "DANGJEJU_2 Firestore Place DB Stage 1",
         "projectId": PROJECT, "databaseId": "(default)",
         "sourceCsv": CSV_PATH.as_posix(), "sourceCsvSha256": CSV_SHA256,
-        "sourceRows": 2126, "selectionFrozen": True,
+        "sourceRows": len(rows), "selectionFrozen": True,
         "idPolicy": "Pilot-only deterministic placeId=kto-{contentId}; placeId and sourceId remain distinct concepts.",
         "summary": summary, "places": entries, "payloadSha256": digest(documents),
     }
+    if full:
+        manifest.pop("pilot")
+        manifest["import"] = "DANGJEJU_2 Firestore Place DB Stage 2 Full"
+        manifest["idPolicy"] = "Deterministic placeId=kto-{contentId}; one separate Place per CSV contentId."
     return manifest, documents
 
 
@@ -252,21 +259,21 @@ def stable_document(path, document):
 def validate_existing(path, current, expected):
     if current is not None:
         require(stable_document(path, current) == expected,
-                f"Existing document differs from frozen pilot: {path}. No overwrite performed.")
+                f"Existing document differs from frozen payload: {path}. No overwrite performed.")
         fields = ("importedAt",) if "/sources/" in path else ("createdAt", "updatedAt")
         require(all(isinstance(current.get(k), datetime) for k in fields), f"Existing timestamp missing: {path}")
 
 
-def connect():
-    require(not os.environ.get("FIRESTORE_EMULATOR_HOST"), "Unset FIRESTORE_EMULATOR_HOST for this live pilot")
-    require(not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"), "Use existing gcloud ADC, not a credentials file override")
+def connect(*, app_name="place-stage1-pilot"):
+    require("FIRESTORE_EMULATOR_HOST" not in os.environ, "Unset FIRESTORE_EMULATOR_HOST for this live import")
+    require("GOOGLE_APPLICATION_CREDENTIALS" not in os.environ, "Use existing gcloud ADC, not a credentials file override")
     import firebase_admin
     from firebase_admin import credentials, firestore
     from google.oauth2 import service_account
 
     credential = credentials.ApplicationDefault()
     require(not isinstance(credential.get_credential(), service_account.Credentials), "Service-account key credentials are prohibited")
-    app = firebase_admin.initialize_app(credential, {"projectId": PROJECT}, name="place-stage1-pilot")
+    app = firebase_admin.initialize_app(credential, {"projectId": PROJECT}, name=app_name)
     db = firestore.client(app=app, database_id="(default)")
     require(db.project == PROJECT, "Wrong project")
     return db, app, firestore
