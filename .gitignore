@@ -9,3 +9,6 @@ coverage/
 
 .firebase/
 
+
+tools/firestore_place_pilot_import/.venv/
+
