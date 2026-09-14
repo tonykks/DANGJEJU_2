@@ -7,6 +7,13 @@ interface SavedPlacesDrawerProps {
   savedPlaces: Place[];
   onRemove: (id: string) => void;
   onSelect: (place: Place) => void;
+  isSignedIn: boolean;
+  isLoading: boolean;
+  authBusy: boolean;
+  error: string | null;
+  pendingIds: string[];
+  onLogin: () => void;
+  onRetry: () => void;
 }
 
 export default function SavedPlacesDrawer({
@@ -15,6 +22,13 @@ export default function SavedPlacesDrawer({
   savedPlaces,
   onRemove,
   onSelect,
+  isSignedIn,
+  isLoading,
+  authBusy,
+  error,
+  pendingIds,
+  onLogin,
+  onRetry,
 }: SavedPlacesDrawerProps) {
   if (!isOpen) return null;
 
@@ -30,6 +44,7 @@ export default function SavedPlacesDrawer({
           </div>
           <button
             onClick={onClose}
+            aria-label="찜한 장소 닫기"
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -37,15 +52,22 @@ export default function SavedPlacesDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {savedPlaces.length === 0 ? (
+          {isLoading || !isSignedIn || savedPlaces.length === 0 ? (
             <div className="text-center py-16 px-4">
               <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-3">
                 <Heart className="w-6 h-6" />
               </div>
-              <p className="text-sm font-bold text-slate-700">저장된 장소가 없습니다</p>
-              <p className="text-xs text-slate-500 mt-1">
-                마음에 드는 카페, 관광지, 산책로 카드의 하트를 눌러 보관해보세요.
+              <p role="status" className="text-sm font-bold text-slate-700">
+                {isLoading ? '찜 목록을 불러오는 중입니다' : !isSignedIn ? '로그인하고 찜한 장소를 보관하세요' : error ? '찜 목록을 확인하지 못했습니다' : '저장된 장소가 없습니다'}
               </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {isLoading ? '잠시만 기다려 주세요.' : !isSignedIn ? 'Google 계정으로 로그인하면 찜한 장소를 다시 불러올 수 있어요.' : error ? error : '마음에 드는 카페, 관광지, 산책로 카드의 하트를 눌러 보관해보세요.'}
+              </p>
+              {!isLoading && !isSignedIn && (
+                <button onClick={onLogin} disabled={authBusy} className="mt-4 px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold disabled:opacity-50">
+                  {authBusy ? '로그인 중…' : 'Google로 로그인'}
+                </button>
+              )}
             </div>
           ) : (
             savedPlaces.map((place) => (
@@ -83,6 +105,8 @@ export default function SavedPlacesDrawer({
                     }}
                     className="p-2 text-slate-300 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors"
                     title="목록에서 삭제"
+                    aria-label={`${place.name} 찜 삭제`}
+                    disabled={authBusy || pendingIds.includes(place.id)}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -94,7 +118,12 @@ export default function SavedPlacesDrawer({
         </div>
 
         <div className="p-4 border-t border-slate-100 bg-slate-50 text-xs text-slate-500 text-center">
-          브라우저에 자동 보관되어 언제든 다시 확인할 수 있습니다.
+          {isSignedIn ? '찜한 장소는 로그인한 Google 계정에 저장됩니다.' : '찜 저장은 로그인 후 이용할 수 있습니다.'}
+          {isSignedIn && (
+            <button onClick={onRetry} disabled={isLoading || authBusy || pendingIds.length > 0} className="block mx-auto mt-2 font-bold text-amber-700 disabled:opacity-50">
+              {isLoading ? '불러오는 중…' : '찜 목록 다시 불러오기'}
+            </button>
+          )}
         </div>
       </div>
     </div>

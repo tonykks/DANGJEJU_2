@@ -9,6 +9,7 @@ import JejuMap from './components/JejuMap';
 import SavedPlacesDrawer from './components/SavedPlacesDrawer';
 import LoadingScreen from './components/LoadingScreen';
 import EventBannerSlider from './components/EventBannerSlider';
+import { useAuthFavorites } from './hooks/useAuthFavorites';
 import { 
   Coffee, 
   MapPin, 
@@ -50,27 +51,12 @@ export default function App() {
   // Event modal state for slide banners
   const [activeBanner, setActiveBanner] = useState<EventBanner | null>(null);
 
-  // Bookmarks persistence with localStorage
-  const [savedPlaceIds, setSavedPlaceIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('dangjeju_saved_places');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('dangjeju_saved_places', JSON.stringify(savedPlaceIds));
-    } catch {}
-  }, [savedPlaceIds]);
-
-  const toggleSavePlace = (placeId: string) => {
-    setSavedPlaceIds((prev) =>
-      prev.includes(placeId) ? prev.filter((id) => id !== placeId) : [...prev, placeId]
-    );
-  };
+  const {
+    user, authLoading, authBusy, notice, dismissNotice, login, logout,
+    savedPlaceIds, toggleSavePlace, favoritesLoading, favoritesError,
+    pendingIds, refreshFavorites,
+  } = useAuthFavorites();
+  const saveNotice = notice ?? favoritesError ?? (pendingIds.length > 0 ? '찜 변경을 저장하고 있습니다…' : null);
 
   // Filter places based on 5 regions & categories
   const filteredPlaces = useMemo(() => {
@@ -143,7 +129,27 @@ export default function App() {
         onOpenSaved={() => setIsSavedDrawerOpen(true)}
         onReloadLoading={() => setIsLoading(true)}
         onResetHome={handleResetHome}
+        user={user}
+        authLoading={authLoading}
+        authBusy={authBusy}
+        onLogin={login}
+        onLogout={logout}
       />
+
+      {saveNotice && (
+        <div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[3000] w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-amber-200 bg-white p-4 shadow-lg text-sm text-slate-700">
+          <p>{saveNotice}</p>
+          <div className="flex items-center justify-end gap-3 mt-2 text-xs font-bold">
+            {!user && !authLoading && (
+              <button onClick={login} disabled={authBusy} className="text-amber-700 disabled:opacity-50">Google로 로그인</button>
+            )}
+            {user && favoritesError && (
+              <button onClick={refreshFavorites} disabled={authBusy || pendingIds.length > 0} className="text-amber-700 disabled:opacity-50">찜 목록 다시 불러오기</button>
+            )}
+            {notice && <button onClick={dismissNotice} className="text-slate-500">닫기</button>}
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
@@ -530,6 +536,13 @@ export default function App() {
         isOpen={isSavedDrawerOpen}
         onClose={() => setIsSavedDrawerOpen(false)}
         savedPlaces={savedPlacesList}
+        isSignedIn={Boolean(user)}
+        isLoading={authLoading || favoritesLoading}
+        authBusy={authBusy}
+        error={favoritesError}
+        pendingIds={pendingIds}
+        onLogin={login}
+        onRetry={refreshFavorites}
         onRemove={toggleSavePlace}
         onSelect={(p) => {
           setSelectedPlace(p);

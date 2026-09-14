@@ -1,10 +1,16 @@
 import { Dog, Heart, Sparkles, RefreshCw } from 'lucide-react';
+import type { User } from 'firebase/auth';
 
 interface HeaderProps {
   savedCount: number;
   onOpenSaved: () => void;
   onReloadLoading?: () => void;
   onResetHome?: () => void;
+  user: User | null;
+  authLoading: boolean;
+  authBusy: boolean;
+  onLogin: () => void;
+  onLogout: () => void;
 }
 
 export default function Header({
@@ -12,14 +18,19 @@ export default function Header({
   onOpenSaved,
   onReloadLoading,
   onResetHome,
+  user,
+  authLoading,
+  authBusy,
+  onLogin,
+  onLogout,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-amber-100 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sm:gap-3">
         {/* Brand Logo & Tagline - 클릭 시 초기화된 홈화면으로 이동 */}
         <div 
           onClick={onResetHome}
-          className="flex items-center gap-3 cursor-pointer group select-none"
+          className="flex items-center gap-2 sm:gap-3 cursor-pointer group select-none"
           title="처음 홈화면으로 돌아가기 (초기화)"
         >
           <div 
@@ -33,7 +44,7 @@ export default function Header({
                 댕제주
               </h1>
             </div>
-            <p className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+            <p className="text-[11px] text-slate-500 font-semibold hidden sm:flex items-center gap-1">
               <span>제주 반려견 스마트 관광 도우미</span>
               <span className="text-amber-500"></span>
             </p>
@@ -41,7 +52,7 @@ export default function Header({
         </div>
 
         {/* Right side actions: Saved places */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {onReloadLoading && (
             <button
               onClick={onReloadLoading}
@@ -55,8 +66,9 @@ export default function Header({
 
           <button
             id="saved-places-header-btn"
+            aria-label={`찜한 장소 ${savedCount}개 열기`}
             onClick={onOpenSaved}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-xs ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-xs ${
               savedCount > 0
                 ? 'bg-rose-50/80 border-rose-200 text-rose-700 hover:bg-rose-100'
                 : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
@@ -70,6 +82,28 @@ export default function Header({
               </span>
             )}
           </button>
+
+          {user ? (
+            <div className="flex items-center gap-1.5 text-xs">
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="계정 사진" referrerPolicy="no-referrer" className="w-6 h-6 rounded-full" />
+              ) : (
+                <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-bold" aria-hidden="true">
+                  {(user.email ?? user.displayName ?? 'G').slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <span title={user.email ?? user.displayName ?? 'Google 계정'} className="hidden lg:inline max-w-28 truncate text-slate-600">
+                {user.email ?? user.displayName ?? 'Google 계정'}
+              </span>
+              <button id="google-logout-btn" onClick={onLogout} disabled={authBusy} aria-label={`${user.email ?? 'Google 계정'} 로그아웃`} className="px-2 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold disabled:opacity-50">
+                {authBusy ? '처리 중…' : '로그아웃'}
+              </button>
+            </div>
+          ) : (
+            <button id="google-login-btn" onClick={onLogin} disabled={authLoading || authBusy} className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-amber-50 disabled:opacity-50">
+              {authLoading ? '계정 확인 중…' : authBusy ? '로그인 중…' : 'Google 로그인'}
+            </button>
+          )}
         </div>
       </div>
     </header>
