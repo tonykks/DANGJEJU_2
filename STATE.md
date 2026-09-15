@@ -9,37 +9,35 @@
 - **WORK_ID:** firestore-query-first-search
 - **목표 참조:** `PROJECT_INTENT.md` (Query-first; 전체 Catalog 선로딩 폐기)
 - **Branch:** `feature/firestore-place-ui`
-- **현재 단계:** LIVE 적용 직전 → **진행 중** (index 배포 → search backfill → Hosting → live smoke)
+- **현재 단계:** **LIVE 적용 완료** (indexes READY → search backfill → Hosting → smoke PASS)
 - **현재 담당:** Geni
-- **다음 담당 / 다음 행동:**
-  1. Firestore indexes 배포 및 READY 확인
-  2. `tools/firestore_place_search_fields/recompute.py --apply` (`search`만)
-  3. Hosting 재배포
-  4. Live smoke (hero5 / region×category / favorites / detail)
-  5. PR·main merge는 **하지 않음**
-- **Blocker:** 없음(Owner live 창 승인됨). Quota 재발 시 즉시 중단·기록.
+- **다음 담당 / 다음 행동:** Owner 수락·추가 지시 대기. **PR·main merge는 하지 않음** (별도 지시 전)
+- **Blocker:** 없음
 - **LAST_UPDATED_BY:** Geni
+- **Hosting:** https://dangjeju.web.app
 
-## 완료된 사실 (재개 시 다시 하지 말 것)
+## 완료된 사실
 
-- Query-first **offline 구현 완료** (App + derive/recompute dry-run + indexes JSON)
-- Hank 설계/기술 검토 반영 완료; Ani 독립 검토 **PASS**
-  - Evidence(local): `private_probe/firestore_query_first/ANI_REVIEW.md`, `GENI_IMPL_NOTES.md`
-- Offline dry-run: places=2126, hero `totalScore>=12` = 5
-- 구형 `BRIEF.md` 제거 (V2 미사용). 내용은 INTENT/STATE/DECISIONS로 흡수. **BRIEF 재승인 금지**
+- Query-first offline 구현 + Hank/Ani offline PASS (이전)
+- V2 SSOT: 루트 `PROJECT_INTENT.md` / `STATE.md` / `DECISIONS.md` / `AGENTS.md` commit. 구형 `BRIEF.md` 삭제 (재승인 금지)
+- Firestore search composite indexes 배포 → **READY**
+- `recompute.py --apply --confirm-project=dangjeju`: **2126**건 `search` write, `search.version==1` count=2126
+- Hosting 재배포 완료
+- Admin live smoke PASS (`private_probe/.../LIVE_SMOKE.json`): hero 5, WEST×CAFE sample, favorite resolve
+- Browser smoke: 홈 추천 5곳 + 서부×카페 검색 44곳(Map=List) + 상세(미확인 안내) 확인
+- unit: `node --test` 25 PASS, derive unittest PASS, lint/build PASS
 
 ## 핵심 계약
 
 - `search.version=1`, `scoreVersion=hank-place-field-audit-v1`
 - Hero: `totalScore >= 12`, limit 5
-- Search: `region` × 8 `category`, `orderBy petSortKey DESC`, Map=List 동일 배열
-- Pet UNKNOWN 포함; `listView` 없음
+- Search: region × 8 category, `orderBy petSortKey DESC`
+- Pet UNKNOWN 포함; **`listView` 없음**
 - Favorites: favorite placeId만 getDoc
-- Snapshot dry-run sha256: `2b91c56fc7b5196bc828c9238081678ed31b26a21a318ac516580238a40ca35b`
+- Apply: ADC only, `--confirm-project=dangjeju`, quota 시 checkpoint 후 중단
 
 ## 관련 파일
 
-- `PROJECT_INTENT.md`, `DECISIONS.md`
-- `tools/firestore_place_search_fields/` (README = recompute 절차)
+- `tools/firestore_place_search_fields/` (README = recompute 절차, `live_smoke.py`)
 - `src/lib/placeSearch.ts`, `src/hooks/usePlaceQueries.ts`, `firestore.indexes.json`
-- Kit local: `agent-collab-kit/` (AGENTS.md 원본)
+- Kit local: `agent-collab-kit/AGENTS.md`

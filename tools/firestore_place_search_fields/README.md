@@ -7,21 +7,26 @@ Deterministic derivation of `places/{id}.search` from Place + linked KTO Source.
 
 ```powershell
 # Offline dry-run against Stage3 snapshot (no Firestore)
-python tools/firestore_place_search_fields/recompute.py --dry-run
+python tools/firestore_place_search_fields/recompute.py
 
 # Unit tests
 python -m unittest tools.firestore_place_search_fields.test_derive -v
+
+# Live apply (Owner-approved window only). Uses gcloud ADC. Project must match.
+python tools/firestore_place_search_fields/recompute.py --apply --confirm-project=dangjeju
 ```
 
-`--apply` is **refused by default** until Owner/Toby approve a live backfill window.
+Checkpoint (resume after quota stop): `private_probe/firestore_query_first/APPLY_CHECKPOINT.json` (local-only).
 
 ## After data enrichment
 
 1. Ensure Place/Source documents reflect new facts (admin/import path).
 2. Run dry-run on a fresh export or approved snapshot; confirm scores/tiers.
 3. Owner approves live window (quota healthy).
-4. Run apply tool (future) with checkpoint + idempotent `inputHash` (skip unchanged).
-5. Verify all 2126 have `search.version == 1`, then enable app query cutover.
+4. Deploy Firestore indexes and wait READY.
+5. Run `--apply --confirm-project=dangjeju` (idempotent via `inputHash`; skip unchanged).
+6. On `RESOURCE_EXHAUSTED`: tool stops, saves checkpoint — **do not retry-loop**. Resume later with the same command.
+7. Verify places with `search.version == 1`, then Hosting cutover + smoke.
 
 ## Score contract
 
