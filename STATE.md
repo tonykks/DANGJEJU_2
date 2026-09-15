@@ -1,46 +1,28 @@
 # STATE — 현재 작업 snapshot
 
 > 일지가 아니다. **지금 재개에 필요한 최신 사실만** 남기고 교체한다.
-> 완료된 상세 이력은 Git history 또는 아래 “근거 파일”에 두고, 여기서는 링크한다.
-> STATE 자신의 Commit SHA를 매번 기록하지 않는다.
 
 ## 현재
 
-- **WORK_ID:** firestore-query-first-search
-- **목표 참조:** `PROJECT_INTENT.md` (Query-first; 전체 Catalog 선로딩 폐기)
+- **WORK_ID:** header-saved-count-fix
+- **목표 참조:** Header 찜 숫자만 `savedPlaceIds.length`로 표시 (저장/복원 로직 미변경)
 - **Branch:** `feature/firestore-place-ui`
-- **현재 단계:** **LIVE 적용 완료** (indexes READY → search backfill → Hosting → smoke PASS)
-- **현재 담당:** Geni
-- **다음 담당 / 다음 행동:** Owner 수락·추가 지시 대기. **PR·main merge는 하지 않음** (별도 지시 전)
-- **Blocker:** 없음
+- **현재 단계:** 수정·배포 완료. Owner 로그인 세션에서 Header 숫자 최종 확인 요청.
+- **현재 담당:** Geni → Owner
+- **다음 담당 / 다음 행동:** Owner가 https://dangjeju.web.app 하드 리프레시 후 Header 배지=Drawer 수 일치 확인. PR/main 없음.
+- **Blocker:** 없음 (에이전트 브라우저 Google 팝업 차단으로 로그인 UI 재현 불가 — 코드/단위/배포는 완료)
 - **LAST_UPDATED_BY:** Geni
 - **Hosting:** https://dangjeju.web.app
 
 ## 완료된 사실
 
-- Query-first offline 구현 + Hank/Ani offline PASS (이전)
-- V2 SSOT: 루트 `PROJECT_INTENT.md` / `STATE.md` / `DECISIONS.md` / `AGENTS.md` commit. 구형 `BRIEF.md` 삭제 (재승인 금지)
-- Firestore search composite indexes 배포 → **READY**
-- `recompute.py --apply --confirm-project=dangjeju`: **2126**건 `search` write, `search.version==1` count=2126
+- 원인: `Header savedCount={savedPlacesList.length}`였고, resolved places는 drawer open 시에만 로드 → 닫힌 상태면 0
+- 수정: `App.tsx` → `savedCount={savedPlaceIds.length}`
+- lint PASS, `node --test` 26 PASS (header contract test 추가), build PASS
 - Hosting 재배포 완료
-- Admin live smoke PASS (`private_probe/.../LIVE_SMOKE.json`): hero 5, WEST×CAFE sample, favorite resolve
-- Browser smoke: 홈 추천 5곳 + 서부×카페 검색 44곳(Map=List) + 상세(미확인 안내) 확인
-- unit: `node --test` 25 PASS, derive unittest PASS, lint/build PASS
-- Hank apply review **PASS** ([Hank apply design review](d53ac29a-9885-443f-8df2-aba55ff5c79e)); follow-up: missing docs no longer marked done on resume
-- Ani live independent review **PASS** ([Ani independent live review](556fd856-9493-4692-8628-84f4eb703028)); evidence local `private_probe/firestore_query_first/ANI_LIVE_REVIEW.md`
-- Non-blocking: legacy `placesCatalog` / `usePlacesCatalog` remain unmounted (dead path)
-
-## 핵심 계약
-
-- `search.version=1`, `scoreVersion=hank-place-field-audit-v1`
-- Hero: `totalScore >= 12`, limit 5
-- Search: region × 8 category, `orderBy petSortKey DESC`
-- Pet UNKNOWN 포함; **`listView` 없음**
-- Favorites: favorite placeId만 getDoc
-- Apply: ADC only, `--confirm-project=dangjeju`, quota 시 checkpoint 후 중단
+- 선행 Query-first live cutover + Ani PASS 유지
 
 ## 관련 파일
 
-- `tools/firestore_place_search_fields/` (README = recompute 절차, `live_smoke.py`)
-- `src/lib/placeSearch.ts`, `src/hooks/usePlaceQueries.ts`, `firestore.indexes.json`
-- Kit local: `agent-collab-kit/AGENTS.md`
+- `src/App.tsx`, `tests/headerSavedCount.test.ts`
+- (이전) Query-first: `PROJECT_INTENT.md`, `tools/firestore_place_search_fields/`
