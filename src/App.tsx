@@ -126,7 +126,7 @@ export default function App() {
 
       {/* Header */}
       <Header
-        savedCount={savedPlacesList.length}
+        savedCount={savedPlaceIds.length}
         onOpenSaved={() => setIsSavedDrawerOpen(true)}
         onReloadLoading={() => setIsLoading(true)}
         onResetHome={handleResetHome}
