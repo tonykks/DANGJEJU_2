@@ -15,10 +15,15 @@ interface PlaceListItemProps {
 
 const CATEGORY_STYLES: Record<string, { label: string; badgeClass: string }> = {
   cafe: { label: '카페', badgeClass: 'bg-orange-100 text-orange-800' },
-  spot: { label: '관광', badgeClass: 'bg-purple-100 text-purple-800' },
+  attraction: { label: '관광', badgeClass: 'bg-purple-100 text-purple-800' },
   food: { label: '식당', badgeClass: 'bg-rose-100 text-rose-800' },
-  trail: { label: '산책', badgeClass: 'bg-emerald-100 text-emerald-800' },
+  shopping: { label: '쇼핑', badgeClass: 'bg-fuchsia-100 text-fuchsia-800' },
   stay: { label: '숙소', badgeClass: 'bg-blue-100 text-blue-800' },
+  leisure: { label: '레포츠', badgeClass: 'bg-cyan-100 text-cyan-800' },
+  culture: { label: '문화', badgeClass: 'bg-indigo-100 text-indigo-800' },
+  event: { label: '축제', badgeClass: 'bg-pink-100 text-pink-800' },
+  spot: { label: '관광', badgeClass: 'bg-purple-100 text-purple-800' },
+  trail: { label: '산책', badgeClass: 'bg-emerald-100 text-emerald-800' },
 };
 
 export default function PlaceListItem({

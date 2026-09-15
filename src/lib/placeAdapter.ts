@@ -1,4 +1,10 @@
 import type { Place, PlaceCategory, RegionId } from '../types.ts';
+import {
+  SEARCH_CATEGORY_TO_UI,
+  SEARCH_REGION_TO_UI,
+  type PlaceSearchFields,
+  type SearchCategory,
+} from './searchTypes.ts';
 
 export type CatalogDocument = { id: string; path: string; data: Record<string, unknown> };
 export const PLACEHOLDER_IMAGE = '/place-placeholder.svg';
@@ -12,10 +18,7 @@ function record(value: unknown): Record<string, unknown> {
 function text(value: unknown): string { return typeof value === 'string' ? value.trim() : ''; }
 function strings(value: unknown): string[] { return Array.isArray(value) ? value.map(text).filter(Boolean) : []; }
 
-// UI classification only. Food (39): KTO cafe/teahouse cat3 takes priority;
-// explicit other cat3 stays food. Only missing cat3 uses a narrow title fallback.
-// 28 stays spot: leisure includes golf/water sports, not necessarily walking trails.
-// 38 is shopping and must never become a pet cafe, even if its title contains cafe.
+// Prefer Firestore search.category when present. Fallback mirrors Owner 8-kind rules.
 export function categoryFor(contentTypeId: unknown, cat3: unknown, title: string): PlaceCategory {
   switch (String(contentTypeId)) {
     case '39':
@@ -23,8 +26,35 @@ export function categoryFor(contentTypeId: unknown, cat3: unknown, title: string
       if (text(cat3)) return 'food';
       return /카페|커피|베이커리|찻집|\bcaf[eé]\b|\bcoffee\b|\bbakery\b/i.test(title) ? 'cafe' : 'food';
     case '32': return 'stay';
-    case '12': case '14': case '15': case '28': case '38': default: return 'spot';
+    case '12': return 'attraction';
+    case '14': return 'culture';
+    case '15': return 'event';
+    case '28': return 'leisure';
+    case '38': return 'shopping';
+    default: return 'attraction';
   }
+}
+
+export function categoryFromSearch(category: SearchCategory | string | undefined): PlaceCategory | null {
+  if (!category || category === 'UNKNOWN') return null;
+  return SEARCH_CATEGORY_TO_UI[category as Exclude<SearchCategory, 'UNKNOWN'>] ?? null;
+}
+
+export function regionFromSearch(region: string | undefined): { region: RegionId; regionName: string } | null {
+  if (!region || region === 'UNKNOWN') return null;
+  const ui = SEARCH_REGION_TO_UI[region as keyof typeof SEARCH_REGION_TO_UI];
+  if (!ui) return null;
+  const names: Record<string, string> = {
+    jeju_city: '제주시', seogwipo: '서귀포시', east: '동부', west: '서부',
+  };
+  return { region: ui, regionName: names[ui] ?? ui };
+}
+
+function readSearch(data: Record<string, unknown>): PlaceSearchFields | null {
+  const search = data.search;
+  if (!search || typeof search !== 'object' || Array.isArray(search)) return null;
+  const value = search as PlaceSearchFields;
+  return value.version === 1 ? value : null;
 }
 
 export function regionFor(address: string, municipality: unknown): { region: RegionId; regionName: string } {
@@ -81,16 +111,22 @@ export function adaptPlace(document: CatalogDocument, sources: CatalogDocument[]
   const pet = known ? record(kto.pet) : {};
   const petDetails = PET_FIELDS.flatMap(([key, label]) => text(pet[key]) ? [{ key, label, value: text(pet[key]) }] : []);
   const petInformationLabel = known ? PET_KNOWN_LABEL : PET_UNKNOWN_LABEL;
+  const search = readSearch(data);
   const name = text(data.name) || text(kto.title) || document.id;
   const address = text(data.address) || text(kto.addr1);
   const imageFallbackUrls = [...new Set([
     imageUrl(data.primaryImageUrl), imageUrl(data.secondaryImageUrl),
     imageUrl(kto.firstImage), imageUrl(kto.firstImage2), PLACEHOLDER_IMAGE,
   ].filter(Boolean))];
+  const searchedRegion = regionFromSearch(search?.region);
+  const searchedCategory = categoryFromSearch(search?.category);
+  // Prefer stored search.* (query path). Fallback keeps offline/legacy docs usable.
+  const regionInfo = searchedRegion ?? regionFor(address, data.municipality);
+  const category = searchedCategory ?? categoryFor(kto.contentTypeId, kto.cat3, name);
   return {
     id: document.id, name, address, roadAddress: text(data.roadAddress) || address,
-    ...regionFor(address, data.municipality),
-    category: categoryFor(kto.contentTypeId, kto.cat3, name),
+    ...regionInfo,
+    category,
     shortDesc: text(data.shortDescription) || text(kto.contentTypeName) || '제주 관광 장소',
     fullDesc: text(data.fullDescription) || '상세 소개 정보가 아직 등록되지 않았습니다.',
     contactNumber: text(data.phone) || text(kto.tel),
@@ -104,6 +140,9 @@ export function adaptPlace(document: CatalogDocument, sources: CatalogDocument[]
       ? 'KTO에서 제공한 반려동물 관련 정보입니다. 방문 전 해당 시설에 최신 동반 가능 여부와 이용 조건을 확인해 주세요.'
       : PET_UNKNOWN_NOTICE,
     petDetails,
+    petTier: search?.petTier,
+    totalScore: search?.totalScore,
+    petScore: search?.petScore,
     // Compatibility fields are deliberately conservative. UNKNOWN and free text never
     // establish a permission, a restriction, a fee, or an amenity. UI uses status/details.
     petPolicy: {
@@ -138,8 +177,8 @@ export function joinPlacesCatalog(placeDocs: CatalogDocument[], sourceDocs: Cata
     group.push(source);
     byPlace.set(placeId, group);
   }
-  const places = placeDocs.map((p) => adaptPlace(p, byPlace.get(p.id)))
-    .sort((a, b) => a.name.localeCompare(b.name, 'ko') || a.id.localeCompare(b.id));
+  // Preserve query order (e.g. petSortKey DESC). Do not re-sort by name for search results.
+  const places = placeDocs.map((p) => adaptPlace(p, byPlace.get(p.id) ?? []));
   const known = places.filter((p) => p.petInformationStatus === 'KTO_OVERLAY_FOUND').length;
   return {
     places,
@@ -149,6 +188,11 @@ export function joinPlacesCatalog(placeDocs: CatalogDocument[], sourceDocs: Cata
       missingSources: placeDocs.filter((p) => !byPlace.has(p.id)).length, unmatchedSources,
     },
   };
+}
+
+/** List/map path: Place docs already carry search.*; no Source join. */
+export function adaptPlaceDocs(placeDocs: CatalogDocument[]): Place[] {
+  return placeDocs.map((doc) => adaptPlace(doc, []));
 }
 
 export function savedCatalogPlaces(places: Place[], savedIds: string[]): Place[] {

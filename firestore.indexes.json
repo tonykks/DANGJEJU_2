@@ -7,6 +7,24 @@
         { "fieldPath": "source", "order": "ASCENDING" },
         { "fieldPath": "placeId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "places",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "search.version", "order": "ASCENDING" },
+        { "fieldPath": "search.region", "order": "ASCENDING" },
+        { "fieldPath": "search.category", "order": "ASCENDING" },
+        { "fieldPath": "search.petSortKey", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "places",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "search.version", "order": "ASCENDING" },
+        { "fieldPath": "search.totalScore", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

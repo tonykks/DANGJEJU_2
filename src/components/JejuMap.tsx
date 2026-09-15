@@ -12,11 +12,16 @@ interface JejuMapProps {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  cafe: '#f97316',      // orange
-  spot: '#8b5cf6',      // purple
-  food: '#ef4444',      // red
-  trail: '#10b981',     // emerald
-  stay: '#3b82f6',      // blue
+  cafe: '#f97316',
+  attraction: '#8b5cf6',
+  food: '#ef4444',
+  shopping: '#d946ef',
+  stay: '#3b82f6',
+  leisure: '#0891b2',
+  culture: '#6366f1',
+  event: '#ec4899',
+  spot: '#8b5cf6',
+  trail: '#10b981',
 };
 
 export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDetail }: JejuMapProps) {
@@ -78,7 +83,9 @@ export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDe
 
     mappedPlaces.forEach((place) => {
       const isSelected = selectedPlace?.id === place.id;
-      const color = CATEGORY_COLORS[place.category] || '#64748b';
+      const known = place.petInformationStatus === 'KTO_OVERLAY_FOUND';
+      const color = known ? (CATEGORY_COLORS[place.category] || '#64748b') : '#94a3b8';
+      const border = isSelected ? '#fbbf24' : (known ? '#ffffff' : '#cbd5e1');
 
       const markerName = document.createElement('span');
       markerName.textContent = place.name.length > 8 ? place.name.slice(0, 8) + '…' : place.name;
@@ -91,7 +98,7 @@ export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDe
             justify-content: center;
             background-color: ${isSelected ? '#0f172a' : color};
             color: #ffffff;
-            border: 2px solid ${isSelected ? '#fbbf24' : '#ffffff'};
+            border: 2px ${known ? 'solid' : 'dashed'} ${border};
             border-radius: 9999px;
             padding: 5px 9px;
             font-size: 11px;
@@ -101,6 +108,7 @@ export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDe
             transform: translate(-50%, -50%) ${isSelected ? 'scale(1.18)' : 'scale(1)'};
             transition: all 0.2s ease;
             cursor: pointer;
+            opacity: ${known ? '1' : '0.85'};
           ">
             <span style="margin-right: 3px;">🐾</span>
             <span>${markerName.innerHTML}</span>

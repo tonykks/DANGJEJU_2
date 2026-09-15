@@ -15,10 +15,15 @@ interface PlaceCardProps {
 
 const CATEGORY_STYLES: Record<string, { label: string; badgeClass: string; icon: string }> = {
   cafe: { label: '카페', badgeClass: 'bg-orange-500 text-white', icon: '☕' },
-  spot: { label: '관광지', badgeClass: 'bg-purple-500 text-white', icon: '🎡' },
+  attraction: { label: '관광지', badgeClass: 'bg-purple-500 text-white', icon: '🎡' },
   food: { label: '음식점', badgeClass: 'bg-rose-500 text-white', icon: '🍽️' },
-  trail: { label: '산책로', badgeClass: 'bg-emerald-600 text-white', icon: '🌿' },
+  shopping: { label: '쇼핑', badgeClass: 'bg-fuchsia-500 text-white', icon: '🛍️' },
   stay: { label: '숙소', badgeClass: 'bg-blue-600 text-white', icon: '🏡' },
+  leisure: { label: '레포츠', badgeClass: 'bg-cyan-600 text-white', icon: '🏄' },
+  culture: { label: '문화시설', badgeClass: 'bg-indigo-500 text-white', icon: '🏛️' },
+  event: { label: '축제·공연', badgeClass: 'bg-pink-500 text-white', icon: '🎉' },
+  spot: { label: '관광지', badgeClass: 'bg-purple-500 text-white', icon: '🎡' },
+  trail: { label: '산책로', badgeClass: 'bg-emerald-600 text-white', icon: '🌿' },
 };
 
 export default function PlaceCard({

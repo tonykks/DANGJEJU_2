@@ -12,10 +12,14 @@ function source(id = 'kto-3401751', kto: Record<string, unknown> = {}): CatalogD
   return { id: sourceId, path: `places/${id}/sources/${sourceId}`, data: { placeId: id, source: 'KTO', kto: { contentTypeId: '39', cat3: 'A05020900', ...kto } } };
 }
 
-test('all imported content types have conservative UI categories; shopping/leisure cannot imply cafe/trail', () => {
-  for (const type of ['12', '14', '15', '28', '38']) assert.equal(categoryFor(type, 'A05020900', '반려동물 카페'), 'spot');
+test('all imported content types map to Owner 8-kind UI categories; shopping/leisure cannot imply cafe', () => {
+  assert.equal(categoryFor('12', 'A05020900', '반려동물 카페'), 'attraction');
+  assert.equal(categoryFor('14', 'A05020900', '반려동물 카페'), 'culture');
+  assert.equal(categoryFor('15', 'A05020900', '반려동물 카페'), 'event');
+  assert.equal(categoryFor('28', 'A05020900', '반려동물 카페'), 'leisure');
+  assert.equal(categoryFor('38', 'A05020900', '반려동물 카페'), 'shopping');
   assert.equal(categoryFor('32', null, '카페 스테이'), 'stay');
-  assert.equal(categoryFor('new-type', null, '카페'), 'spot');
+  assert.equal(categoryFor('new-type', null, '카페'), 'attraction');
 });
 
 test('food category uses authoritative cat3 before narrow title fallback', () => {
@@ -91,7 +95,7 @@ test('bulk join preserves separate IDs with identical names and rejects unrelate
   assert.equal(result.counts.unknown, 1);
   assert.equal(result.counts.unmatchedSources, 1);
   assert.equal(result.counts.missingSources, 1);
-  assert.equal(result.places.find((p) => p.id === b.id)?.category, 'spot');
+  assert.equal(result.places.find((p) => p.id === b.id)?.category, 'shopping');
 });
 
 test('invalid document identities fail rather than silently changing favorite IDs', () => {

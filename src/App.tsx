@@ -1,8 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { REGIONS } from './data/places';
 import { Place, RegionId, PlaceCategory, EventBanner } from './types';
-import { usePlacesCatalog } from './hooks/usePlacesCatalog';
-import { savedCatalogPlaces } from './lib/placeAdapter';
+import { enrichPlaceWithSource, useFavoritePlaces, useHeroPlaces, usePlaceSearch } from './hooks/usePlaceQueries';
 import Header from './components/Header';
 import PlaceCard from './components/PlaceCard';
 import PlaceListItem from './components/PlaceListItem';
@@ -12,47 +11,51 @@ import SavedPlacesDrawer from './components/SavedPlacesDrawer';
 import LoadingScreen from './components/LoadingScreen';
 import EventBannerSlider from './components/EventBannerSlider';
 import { useAuthFavorites } from './hooks/useAuthFavorites';
-import { 
-  Coffee, 
-  MapPin, 
-  UtensilsCrossed, 
-  Trees, 
-  BedDouble, 
-  Compass, 
-  Dog, 
+import {
+  Coffee,
+  MapPin,
+  UtensilsCrossed,
+  BedDouble,
+  ShoppingBag,
+  Landmark,
+  PartyPopper,
+  Waves,
+  Dog,
   Calendar,
-  Sparkles
+  Sparkles,
 } from 'lucide-react';
 
+const SEARCH_REGIONS = REGIONS.filter((reg) => reg.id !== 'all');
 const CATEGORIES: { id: PlaceCategory; name: string; icon: any }[] = [
-  { id: 'all', name: '전체보기', icon: Compass },
-  { id: 'cafe', name: '카페·베이커리', icon: Coffee },
-  { id: 'spot', name: '관광지·체험', icon: MapPin },
-  { id: 'food', name: '음식점·식당', icon: UtensilsCrossed },
-  { id: 'trail', name: '산책로·해변', icon: Trees },
-  { id: 'stay', name: '숙소·펜션', icon: BedDouble },
+  { id: 'attraction', name: '관광지', icon: MapPin },
+  { id: 'cafe', name: '카페', icon: Coffee },
+  { id: 'food', name: '음식점', icon: UtensilsCrossed },
+  { id: 'shopping', name: '쇼핑', icon: ShoppingBag },
+  { id: 'stay', name: '숙박', icon: BedDouble },
+  { id: 'leisure', name: '레포츠', icon: Waves },
+  { id: 'culture', name: '문화시설', icon: Landmark },
+  { id: 'event', name: '축제·공연·행사', icon: PartyPopper },
 ];
 
 export default function App() {
-  const { catalog, status: catalogStatus, retry: retryCatalog } = usePlacesCatalog();
-  const places = useMemo(() => catalog?.places ?? [], [catalog]);
-  // Loading screen state
   const [isLoading, setIsLoading] = useState(true);
-
-  // Region and Category selection
   const [selectedRegion, setSelectedRegion] = useState<RegionId>('all');
   const [selectedCategory, setSelectedCategory] = useState<PlaceCategory>('all');
+  const isHome = selectedRegion === 'all' || selectedCategory === 'all';
+  const searchReady = selectedRegion !== 'all' && selectedCategory !== 'all';
 
-  // Place selection & Modals
+  const hero = useHeroPlaces(isHome);
+  const search = usePlaceSearch(selectedRegion, selectedCategory);
+  const places = isHome ? hero.places : search.places;
+  const placesStatus = isHome ? hero.status : (searchReady ? search.status : 'idle');
+  const retryPlaces = isHome ? hero.retry : search.retry;
+  const docCache = isHome ? hero.cache : search.cache;
+
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [modalPlace, setModalPlace] = useState<Place | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
-
-  // Concise View Modes: 'split' (분할뷰 - 기본), 'list' (목록만), 'map' (지도만)
   const [viewMode, setViewMode] = useState<'split' | 'list' | 'map'>('split');
-
-  // Event modal state for slide banners
   const [activeBanner, setActiveBanner] = useState<EventBanner | null>(null);
 
   const {
@@ -60,32 +63,26 @@ export default function App() {
     savedPlaceIds, toggleSavePlace, favoritesLoading, favoritesError,
     pendingIds, refreshFavorites,
   } = useAuthFavorites();
+  const favorites = useFavoritePlaces(savedPlaceIds, Boolean(user) && isSavedDrawerOpen);
   const saveNotice = notice ?? favoritesError ?? (pendingIds.length > 0 ? '찜 변경을 저장하고 있습니다…' : null);
 
-  // Filter places based on 5 regions & categories
-  const filteredPlaces = useMemo(() => {
-    return places.filter((place) => {
-      if (selectedRegion !== 'all' && place.region !== selectedRegion) {
-        return false;
-      }
-      if (selectedCategory !== 'all' && place.category !== selectedCategory) {
-        return false;
-      }
-      return true;
-    });
-  }, [places, selectedRegion, selectedCategory]);
+  // Home and search share the same array for map + list (no client filter of a full catalog).
+  const filteredPlaces = places;
+  const savedPlacesList = favorites.places;
 
-  const savedPlacesList = useMemo(() => {
-    return savedCatalogPlaces(places, savedPlaceIds);
-  }, [places, savedPlaceIds]);
-
-  const handleOpenDetail = (place: Place) => {
+  const handleOpenDetail = async (place: Place) => {
     setSelectedPlace(place);
     setModalPlace(place);
     setIsModalOpen(true);
+    try {
+      const enriched = await enrichPlaceWithSource(place, docCache.current);
+      setModalPlace(enriched);
+      setSelectedPlace(enriched);
+    } catch {
+      /* keep list-level place if source fetch fails */
+    }
   };
 
-  // Reset to initial home state
   const handleResetHome = () => {
     setSelectedRegion('all');
     setSelectedCategory('all');
@@ -163,20 +160,25 @@ export default function App() {
           <EventBannerSlider onBannerClick={(banner) => setActiveBanner(banner)} />
         </section>
 
-        {catalogStatus === 'loading' && (
+        {placesStatus === 'loading' && (
           <div role="status" aria-live="polite" className="rounded-2xl border border-amber-200 bg-white p-6 text-sm font-bold text-slate-700">
-            제주 관광 장소를 불러오는 중입니다…
+            {isHome ? '추천 장소를 불러오는 중입니다…' : '선택한 조건의 장소를 불러오는 중입니다…'}
           </div>
         )}
-        {catalogStatus === 'error' && (
+        {placesStatus === 'error' && (
           <div role="alert" className="rounded-2xl border border-rose-200 bg-white p-6 text-sm text-slate-700">
             <p className="font-bold">장소 정보를 불러오지 못했습니다.</p>
             <p className="mt-1">연결 상태를 확인한 후 다시 시도해 주세요.</p>
-            <button onClick={retryCatalog} className="mt-3 rounded-xl bg-amber-500 px-4 py-2 font-bold text-white">장소 다시 불러오기</button>
+            <button onClick={retryPlaces} className="mt-3 rounded-xl bg-amber-500 px-4 py-2 font-bold text-white">장소 다시 불러오기</button>
           </div>
         )}
-        {catalogStatus === 'ready' && <>
-        {/* 3. 여행 지역 선택 (전체, 제주시, 서귀포시, 동부, 서부) */}
+        {searchReady && placesStatus === 'idle' && (
+          <div className="rounded-2xl border border-amber-100 bg-white p-6 text-sm font-bold text-slate-600">
+            지역과 장소 유형을 모두 선택하면 검색됩니다.
+          </div>
+        )}
+        {(placesStatus === 'ready' || (isHome && placesStatus === 'idle')) && <>
+        {/* 3. 여행 지역 선택 (제주시, 서귀포시, 동부, 서부) */}
         <section className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-amber-100/90 shadow-2xs">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -188,16 +190,13 @@ export default function App() {
               </h2>
             </div>
             <span className="text-xs text-slate-400 font-medium">
-              5대 권역 바로보기
+              {isHome ? '추천 장소 보기' : '조건 검색'}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-            {REGIONS.map((reg) => {
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {SEARCH_REGIONS.map((reg) => {
               const isActive = selectedRegion === reg.id;
-              const count = reg.id === 'all'
-                ? places.length
-                : places.filter((p) => p.region === reg.id).length;
 
               return (
                 <button
@@ -212,15 +211,6 @@ export default function App() {
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-black tracking-tight">{reg.name}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                        isActive
-                          ? 'bg-amber-400 text-slate-950 shadow-xs'
-                          : 'bg-white text-slate-500 border border-slate-200/70'
-                      }`}
-                    >
-                      {count}곳
-                    </span>
                   </div>
                   <span
                     className={`text-[11px] font-medium mt-1.5 line-clamp-1 ${
@@ -247,11 +237,11 @@ export default function App() {
               </h2>
             </div>
             <span className="text-xs text-slate-400 font-medium">
-              테마별 모아보기
+              8개 유형
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {CATEGORIES.map((cat) => {
               const Icon = cat.icon;
               const isActive = selectedCategory === cat.id;
@@ -280,7 +270,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <p className="text-xs sm:text-sm font-bold text-slate-700">
-              제주 관광 장소 <span className="text-amber-600 font-black">{filteredPlaces.length}곳</span>
+              {isHome ? '추천 장소' : '검색 결과'} <span className="text-amber-600 font-black">{filteredPlaces.length}곳</span>
               <span className="ml-2 text-slate-500">반려동물 정보 확인 {filteredPlaces.filter((p) => p.petInformationStatus === 'KTO_OVERLAY_FOUND').length}곳</span>
             </p>
           </div>
@@ -338,7 +328,7 @@ export default function App() {
                 <div className="lg:hidden bg-slate-900 text-white px-4 py-2.5 text-xs font-black flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                    <span>제주 관광 장소 지도 ({filteredPlaces.length}곳)</span>
+                    <span>{isHome ? '추천 장소' : '검색 결과'} 지도 ({filteredPlaces.length}곳)</span>
                   </div>
                   <button
                     onClick={() => cardSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
@@ -472,7 +462,7 @@ export default function App() {
       </main>
 
       {/* 모바일 전용 플로팅 지도/목록 스위처 버튼 */}
-      {catalogStatus === 'ready' && viewMode === 'split' && (
+      {placesStatus === 'ready' && viewMode === 'split' && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 lg:hidden pointer-events-none">
           <button
             onClick={handleToggleMobileMap}
@@ -556,17 +546,15 @@ export default function App() {
         onClose={() => setIsSavedDrawerOpen(false)}
         savedPlaces={savedPlacesList}
         isSignedIn={Boolean(user)}
-        isLoading={authLoading || favoritesLoading || catalogStatus === 'loading'}
+        isLoading={authLoading || favoritesLoading || (isSavedDrawerOpen && favorites.status === 'loading')}
         authBusy={authBusy}
-        error={favoritesError ?? (catalogStatus === 'error' ? '장소 정보를 불러오지 못했습니다.' : null)}
+        error={favoritesError ?? (favorites.status === 'error' ? '찜한 장소를 불러오지 못했습니다.' : null)}
         pendingIds={pendingIds}
         onLogin={login}
-        onRetry={() => { refreshFavorites(); if (catalogStatus === 'error') retryCatalog(); }}
+        onRetry={() => { refreshFavorites(); favorites.retry(); }}
         onRemove={toggleSavePlace}
         onSelect={(p) => {
-          setSelectedPlace(p);
-          setModalPlace(p);
-          setIsModalOpen(true);
+          void handleOpenDetail(p);
         }}
       />
     </div>

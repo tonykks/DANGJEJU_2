@@ -24,7 +24,20 @@ export interface EventBanner {
   linkText?: string;
 }
 
-export type PlaceCategory = 'all' | 'cafe' | 'spot' | 'food' | 'trail' | 'stay';
+/** UI/search place kind. `all` = home / unset (not a Firestore category). */
+export type PlaceCategory =
+  | 'all'
+  | 'attraction'
+  | 'cafe'
+  | 'food'
+  | 'shopping'
+  | 'stay'
+  | 'leisure'
+  | 'culture'
+  | 'event'
+  /** @deprecated legacy UI values kept for stored fixtures only */
+  | 'spot'
+  | 'trail';
 
 export type DogSizeLimit = 'all' | 'small' | 'medium' | 'large'; // all sizes, under 10kg, 10-20kg, large allowed
 
@@ -84,6 +97,9 @@ export interface Place {
   petInformationNotice?: string;
   petDetails?: { key: string; label: string; value: string }[];
   imageFallbackUrls?: string[];
+  petTier?: 'RICH' | 'PARTIAL' | 'BASIC' | 'UNKNOWN';
+  totalScore?: number;
+  petScore?: number;
 }
 
 export interface FilterState {
