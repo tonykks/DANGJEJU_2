@@ -162,13 +162,16 @@ def load_checkpoint(path: Path) -> set[str]:
     return set(done)
 
 
-def save_checkpoint(path: Path, *, done: set[str], meta: dict):
+def save_checkpoint(path: Path, *, done: set[str], missing_ids: set[str], meta: dict):
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         **meta,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
         "doneCount": len(done),
         "donePlaceIds": sorted(done),
+        # Missing docs are NOT in donePlaceIds so resume can retry them.
+        "missingCount": len(missing_ids),
+        "missingPlaceIds": sorted(missing_ids),
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -184,7 +187,8 @@ def apply_live(args, actual, rows, heroes):
     db, app, firestore_mod = connect_firestore()
     done = load_checkpoint(args.checkpoint)
     pending = [r for r in rows if r["placeId"] not in done]
-    written = skipped = missing = 0
+    written = skipped = 0
+    missing_ids: set[str] = set()
     started = time.time()
     meta = {
         "mode": "apply",
@@ -212,13 +216,17 @@ def apply_live(args, actual, rows, heroes):
                 snaps = list(db.get_all(refs, timeout=60))
             except Exception as exc:
                 if is_quota_error(exc):
-                    save_checkpoint(args.checkpoint, done=done, meta={**meta, "stopReason": "quota_on_read"})
+                    save_checkpoint(
+                        args.checkpoint, done=done, missing_ids=missing_ids,
+                        meta={**meta, "stopReason": "quota_on_read"},
+                    )
                     print(json.dumps({
                         "status": "STOP_QUOTA",
                         "phase": "read",
                         "done": len(done),
                         "written": written,
                         "skipped": skipped,
+                        "missing": len(missing_ids),
                         "error": str(exc),
                     }, ensure_ascii=False), file=sys.stderr)
                     return 3
@@ -253,40 +261,45 @@ def apply_live(args, actual, rows, heroes):
                     batch.commit(timeout=60)
                 except Exception as exc:
                     if is_quota_error(exc):
-                        save_checkpoint(args.checkpoint, done=done, meta={**meta, "stopReason": "quota_on_write"})
+                        save_checkpoint(
+                            args.checkpoint, done=done, missing_ids=missing_ids,
+                            meta={**meta, "stopReason": "quota_on_write"},
+                        )
                         print(json.dumps({
                             "status": "STOP_QUOTA",
                             "phase": "write",
                             "done": len(done),
                             "written": written,
                             "skipped": skipped,
+                            "missing": len(missing_ids),
                             "error": str(exc),
                         }, ensure_ascii=False), file=sys.stderr)
                         return 3
                     raise
 
+            # Missing docs stay out of done so a later resume retries them.
             for pid in chunk_missing:
-                missing += 1
-                done.add(pid)
+                missing_ids.add(pid)
             for pid in chunk_skip:
                 skipped += 1
                 done.add(pid)
+                missing_ids.discard(pid)
             for pid in to_write:
                 written += 1
                 done.add(pid)
+                missing_ids.discard(pid)
 
-            save_checkpoint(args.checkpoint, done=done, meta={
+            save_checkpoint(args.checkpoint, done=done, missing_ids=missing_ids, meta={
                 **meta,
                 "written": written,
                 "skipped": skipped,
-                "missing": missing,
             })
             print(json.dumps({
                 "status": "PROGRESS",
                 "done": len(done),
                 "written": written,
                 "skipped": skipped,
-                "missing": missing,
+                "missing": len(missing_ids),
                 "elapsedSec": round(time.time() - started, 1),
             }, ensure_ascii=False))
 
@@ -306,25 +319,26 @@ def apply_live(args, actual, rows, heroes):
             verify["placesWithSearchVersion1"] = None
             verify["countError"] = str(exc)
 
-        save_checkpoint(args.checkpoint, done=done, meta={
+        status = "PASS" if not missing_ids else "FAIL_MISSING"
+        save_checkpoint(args.checkpoint, done=done, missing_ids=missing_ids, meta={
             **meta,
-            "status": "PASS",
+            "status": status,
             "written": written,
             "skipped": skipped,
-            "missing": missing,
             "verify": verify,
         })
         print(json.dumps({
-            "status": "PASS",
+            "status": status,
             "written": written,
             "skipped": skipped,
-            "missing": missing,
+            "missing": len(missing_ids),
+            "missingPlaceIds": sorted(missing_ids)[:20],
             "done": len(done),
             "verify": verify,
             "elapsedSec": round(time.time() - started, 1),
             "checkpoint": str(args.checkpoint),
         }, ensure_ascii=False))
-        return 0 if missing == 0 else 4
+        return 0 if not missing_ids else 4
     finally:
         import firebase_admin
         try:

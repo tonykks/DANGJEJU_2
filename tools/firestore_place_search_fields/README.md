@@ -17,6 +17,8 @@ python tools/firestore_place_search_fields/recompute.py --apply --confirm-projec
 ```
 
 Checkpoint (resume after quota stop): `private_probe/firestore_query_first/APPLY_CHECKPOINT.json` (local-only).
+Missing live Place docs are recorded in `missingPlaceIds` and **not** marked done, so resume retries them.
+Current Stage3 snapshot contract is exactly 2126 places/sources (sha gated); refresh `--expected-sha256` when the export changes.
 
 ## After data enrichment
 

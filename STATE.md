@@ -26,6 +26,7 @@
 - Admin live smoke PASS (`private_probe/.../LIVE_SMOKE.json`): hero 5, WEST×CAFE sample, favorite resolve
 - Browser smoke: 홈 추천 5곳 + 서부×카페 검색 44곳(Map=List) + 상세(미확인 안내) 확인
 - unit: `node --test` 25 PASS, derive unittest PASS, lint/build PASS
+- Hank apply review **PASS** ([Hank apply design review](d53ac29a-9885-443f-8df2-aba55ff5c79e)); follow-up: missing docs no longer marked done on resume
 
 ## 핵심 계약
 
