@@ -12,3 +12,7 @@ coverage/
 
 tools/firestore_place_pilot_import/.venv/
 
+
+__pycache__/
+*.py[cod]
+
