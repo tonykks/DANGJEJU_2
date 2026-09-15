@@ -1,5 +1,5 @@
 import PlaceImage from './PlaceImage';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Place } from '../types';
 import { 
   X, 
@@ -34,6 +34,13 @@ export default function PlaceDetailModal({
 }: PlaceDetailModalProps) {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'policy' | 'location' | 'tips'>('policy');
+
+  // Each open / place switch starts on the first tab ("반려동물 정보").
+  useEffect(() => {
+    if (isOpen && place) {
+      setActiveTab('policy');
+    }
+  }, [isOpen, place?.id]);
 
   if (!isOpen || !place) return null;
 
