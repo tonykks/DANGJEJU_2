@@ -19,3 +19,6 @@
 | 2026-09-15 | firestore-query-first-search | V2: `BRIEF.md` 제거. 승인 내용은 INTENT/STATE/DECISIONS로 흡수 | Kit V2는 BRIEF 미사용. 재승인 절차 금지. |
 | 2026-09-15 | firestore-query-first-search | 활성 INTENT/STATE/DECISIONS는 Project 루트에 두고 작업 branch에 commit | Owner: 원격 Repository를 현재 상태 SSOT로. Secret/raw는 여전히 local-only. |
 | 2026-09-15 | firestore-query-first-search | Live 순서 고정: indexes READY → search backfill → Hosting → smoke. PR/main 별도 | Owner live 창 승인. |
+| 2026-09-15 | handoff-discipline | 작업 시작·재개 시 `README.md`부터 읽고 **먼저 원격 최신 상태로 sync한 뒤** 최신 `STATE.md`의 `다음 담당 / 다음 행동`을 기준으로 이어간다. stale local 상태로 Owner 승인 대기를 만들지 않는다. | 로컬이 원격보다 뒤처져 있으면 최신 Toby handoff를 놓쳐 엉뚱한 대기/반복 작업이 발생한다. |
+| 2026-09-15 | handoff-discipline | Toby가 Owner에게 한 줄 재개 지시를 안내하기 전에는, 자신이 쓴 `STATE.md`가 해당 작업 branch에 commit/push 되었고 remote tip에서 실제로 보이는지 확인한다. | Owner가 긴 프롬프트 운반자가 되는 것을 막고 GitHub SSOT를 실제 통신 채널로 사용한다. |
+| 2026-09-15 | handoff-discipline | 정상 동작 중인 기능은 함부로 수정하지 않는다. 불가피하게 수정하면 최소 범위로 하고 완료 보고에 `수정 파일 / 수정 함수·로직 / 수정 이유 / 기존 정상 기능 영향`을 반드시 적는다. | 이미 통과한 기능의 회귀와 원인 불명 변경을 방지한다. |
