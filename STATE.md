@@ -7,11 +7,11 @@
 - **WORK_ID:** admin-place-editor-v1
 - **Branch:** `feature/firestore-place-ui`
 - **요구사항 기준:** 루트 `requirement.md`
-- **현재 단계:** admin-place-editor-v1 코드는 그대로 유지. 후속 Firestore Rules Emulator 동적 검증을 agy에 맡겨 시도했으나 이 호스트에 Java가 없어 `BLOCKED_ENVIRONMENT`; 실제 Emulator test는 미실행이다.
-- **현재 담당 / LAST_UPDATED_BY:** Hank, 2026-09-19
-- **다음 담당 / 다음 행동:** Owner가 2026-09-19 **이번 V1을 중간 승인 없이 끝까지 완료하도록 명시 승인**했다. Hank는 Java 21 설치 → Emulator Rules 동적검증 → 필요 시 최소 수정·재시험 → Firestore Rules live deploy → 현재 Owner 계정의 정확한 Firebase Auth UID 확인 → `admins/{uid}` 관리자 문서 1회 생성 → 관리자 live E2E → STATE 갱신·commit/push까지 자율적으로 완료한다.
-- **Blocker:** 현재 `java` command/PATH 없음은 작업 blocker가 아니라 설치 후 해소할 개발환경 항목이다. 설치된 Firebase CLI는 15.28.1이며 CLI v15 Emulator 실행에는 Java 21 이상이 필요하다. **Java 21 설치, Rules live deploy, Owner 관리자 등록, 검증용 운영 DB의 최소·가역적 E2E write까지 이번 V1 범위에서 승인됨.** 새 Billing/Storage 활성화, 새 계정/credential 요구, PR/main merge는 여전히 승인 범위 밖이다.
-- **Hosting (기존 운영, 미배포):** https://dangjeju.web.app
+- **현재 단계:** Java 21 설치, Rules Emulator 동적 검증/최소 수정, agy 독립 재검증, Firestore Rules 운영 배포, 정확한 Owner Auth UID의 관리자 문서 생성, Firebase Hosting 재배포, 두 live site HTTP/Rules smoke까지 완료했다.
+- **현재 담당 / LAST_UPDATED_BY:** Hank, 2026-09-20
+- **다음 담당 / 다음 행동:** 연결 가능한 브라우저가 생기면 현재 Owner로 로그인해 두 live site의 `관리` 버튼, `#/admin/places` 직접 URL 차단, 최소 Place update/원상복원, 로그인·찜 UI를 최종 클릭 검증한다.
+- **Blocker:** Browser runtime에서 사용 가능한 browser가 0개였고, 기존 Firebase CLI OAuth credential은 Firebase Web Auth의 Google provider client와 달라 표준 `signInWithIdp`가 400으로 거부됐다. privileged custom-token 우회나 새 계정/credential 생성은 사용하지 않았다. 따라서 **Owner 인증 브라우저 세션이 필요한 UI click/write E2E만 미완료**이며 나머지 운영 적용·검증은 완료다.
+- **Hosting (운영 재배포 완료):** https://dangjeju.web.app
 - **Pages (feature preview):** https://tonykks.github.io/DANGJEJU_2/ — feature push가 GitHub Pages workflow를 자동 실행한다.
 
 ## 완료 구현
@@ -26,28 +26,32 @@
 - `manualAdmin`은 `source: ADMIN_UI`, 현재 `changedFields`/`changedTopLevel`, 누적 `managedFields`, `clearedFields`, server timestamp만 보존하며 공개 Place에 관리자 UID를 저장하지 않는다.
 - Pet 정책/상세의 실제 변경은 자동으로 `ADMIN_CONFIRMED`가 된다. `KTO_OVERLAY_FOUND`는 관리자 입력 필드가 아니며, `ADMIN_CONFIRMED`도 카드·목록·지도·집계에서 확인 데이터로 취급한다.
 - 저장 transaction에서 수정된 한 Place의 `search.*`만 TypeScript로 재계산한다. 기존 Python 기준과 점수/hash parity를 유지하며 HTML entity, 공백 숫자, clear 목록 정규화, Firestore Timestamp↔snapshot ISO 경계까지 회귀 테스트한다.
-- Rules는 public Place read와 기존 favorites 계약을 유지하고, 활성 관리자만 allowlist된 Place update를 허용한다. Place create/delete, KTO Source write, 관리자 문서 Client write, metadata/search-only update, status spoof, partial nested map, 잘못된 enum/URL/clear를 거부한다.
+- Rules는 public Place read와 기존 favorites 계약을 유지하고, 활성 관리자만 allowlist된 Place update를 허용한다. Place create/delete, KTO Source write, 관리자 문서 Client write, metadata/search-only update, status spoof, partial nested map, 잘못된 enum/URL/clear를 거부한다. Emulator에서 발견된 1,000-expression 한도를 피하도록 `affected`/`manualAdmin`을 1회 계산하고 실제 변경된 display group만 검증하되, 변경 allowlist·audit·search·보호 필드 계약은 유지한다.
 
 ## CLI 사용·독립 검토
 
-- **Codex CLI 0.155.1:** 주 분석·구현·테스트에 실제 사용. Windows restricted-token helper가 workspace-write에서 실패하여 승인된 외부 경계 안에서 `-s danger-full-access -a never`로 두 구현 세션을 실행했다. CLI는 git commit/push, Firebase data 접근/deploy, 관리자 생성은 하지 않았다. 한 Firebase CLI version 확인이 public update-check를 시도했으나 Firebase project 접근·변경은 없었다.
+- **Codex CLI 0.155.1:** 기존 주 구현 세션에 더해 실제 Emulator의 1,000-expression 실패를 전달해 `firestore.rules` 최소 최적화를 수행했다. CLI 자체 재시험은 20분 제한으로 종료됐으나 변경은 Rules 한 파일에만 남았고, 이후 Hank의 clean Emulator 재실행과 전체 회귀에서 PASS했다. CLI는 commit/push, 운영 Firebase deploy/data 변경을 하지 않았다.
 - **agy CLI 1.2.7:** 설치 버전은 사전 예상 1.2.5가 아닌 1.2.7이었다. 최종 diff를 UTF-8 stream-json stdin으로 빈 임시 directory에서 제공하고 workspace/shell/web/MCP/subagent 사용을 금지했다. 1차 `NEEDS_CHANGES`의 sparse optional field Rules guard를 수정한 뒤 최종 재검토는 **PASS**. 두 유효 리뷰 모두 tool/subagent step 0회였다.
-- **agy Emulator 후속 검증:** headless sandbox에서 command 실행은 별도 승격 승인을 요구해 자동 거부됐고 위험한 전체 권한 우회는 사용하지 않았다. 관측 환경과 실제 Rules/test source를 stdin으로 제공한 독립 점검은 **BLOCKED_ENVIRONMENT** 판정, tool/subagent step 0회였다. 동적 실행을 했다고 간주하지 않는다.
+- **agy Emulator 독립 검증:** global allowlist에 demo Emulator 정확 명령 1개와 현재 workspace만 임시 허용했다. agy가 실제 `firebase.cmd emulators:exec --only firestore --project demo-admin-place-editor-rules "node_modules\.bin\tsx.cmd --test tests/firestoreRules.test.ts"`를 실행해 exit 0, tests 1 / pass 1 / fail 0 / skipped 0을 관측하고 **PASS** 판정했다. 불필요한 home 검색/`echo Done`은 거부됐고 임시 permission/workspace 항목은 즉시 원상복구했다.
 
 ## 검증 결과
 
 - `npm.cmd run lint`: PASS.
-- `tsx --test tests/*.test.ts tests/*.test.mjs`: **63개 중 62 PASS, 1 SKIP**. SKIP은 Java가 없어 실행하지 못한 Firestore Emulator Rules 동적 테스트다.
+- Java: Eclipse Temurin **21.0.12.1 LTS**를 공식 release zip의 SHA-256 검증 후 사용자 PATH에 설치했다. Firebase CLI 15.28.1이 Java 21을 인식했다.
+- demo Firestore Emulator: **1 PASS, 0 FAIL, 0 SKIP**. 일반 사용자 Place update 거부, 활성 관리자 update 허용, Place create/delete 거부, KTO Source create/update/delete 거부, admins client write 거부, favorites owner 허용/타인 거부를 실제 Rules로 실행했다.
+- `tsx --test tests/*.test.ts tests/*.test.mjs`: **63개 중 62 PASS, 1 SKIP**. 통합 suite에서는 의도대로 Emulator 환경이 없는 단일 test만 SKIP이며 위 별도 Emulator 실행에서 PASS했다.
 - `python -m unittest tools.firestore_place_search_fields.test_derive`: **7 PASS**.
 - pilot/full import 회귀: **21 PASS**.
 - Firebase root base production build: PASS (1,721 modules).
 - GitHub Pages `/DANGJEJU_2/` base production build: PASS (1,721 modules).
 - 두 build 모두 약 798 kB 단일 JS chunk 경고가 있으나 build 실패나 경로 오류는 아니다.
-- `git diff --check`: PASS. Java/Firestore Emulator 부재로 Rules 실제 compile·동적 권한 테스트는 미실행이며, 정적 계약 테스트와 attack case는 추가했다.
-- Ani가 `tests/firestoreRules.test.ts`를 독립 점검한 결과 harness는 일반 사용자 Place update 거부, 활성 관리자 update 허용, Place create/delete 거부, KTO Source create/update/delete 거부, admins client write 거부, favorites owner 허용/타인 거부의 6개 목표를 모두 포함한다.
+- `git diff --check`: PASS. Rules static test는 새 `let affected`/`let admin` 구조를 검증하도록 최소 갱신했다.
+- Firestore Rules live deploy: `dangjeju` compile/release **PASS**. `displayTopLevelNames` 미사용 경고 1개는 기능 영향이 없고 정상 코드 추가 수정 금지 원칙에 따라 유지했다.
+- 현재 Firebase CLI Owner account와 동일 이메일의 활성 Google-provider Firebase Auth user를 Identity Toolkit에서 1명으로 결정적으로 확인했다. UID를 출력·파일 저장하지 않고 그 UID에만 `admins/{uid}` = `{ role: "admin", active: true }`를 생성했으며 재조회 **PASS**.
+- 최초 live HTTP에서 Pages는 admin bundle을 포함했으나 Hosting은 stale bundle이었다. root build를 `firebase deploy --only hosting --project dangjeju`로 재배포한 뒤 두 site 모두 HTML/JS/CSS 200, `ADMIN_UI`/admins 계약과 `/admin/places` route 포함 **PASS**.
+- 운영 Firestore public Place read와 `name` 접두검색(limit 12) **PASS**. 고유 비인증 probe의 Place update, Source write, admins write, favorites write는 모두 live Rules에서 거부되어 데이터 변경 없음.
 - Java 21 host 안전 재실행 명령(PowerShell, 운영 접근 없음): `firebase.cmd emulators:exec --only firestore --project demo-admin-place-editor-rules "node_modules\.bin\tsx.cmd --test tests/firestoreRules.test.ts"`.
-- Emulator 실제 실패가 없으므로 `firestore.rules`, test, app code는 이번 후속 단계에서 변경하지 않았다.
-- live Rules/admin이 의도적으로 미적용이므로 관리자 실제 로그인·write browser E2E는 아직 수행하지 않았다.
+- Owner 인증 browser가 없어 실제 관리자 UI Place write/restore와 owner favorites 클릭 회귀는 미실행이다. 위험한 인증 우회나 새 credential 생성 대신 Emulator 동적 test, live public search/비인증 deny probe, 두 live bundle smoke까지만 수행했다.
 
 ## 승인 경계 / 현재 Owner 승인
 
@@ -55,20 +59,15 @@
 - 관리자 UID는 현재 Owner의 실제 인증 계정에서 **결정적으로 확인**해야 하며 favorites 경로나 추측으로 고르지 않는다.
 - 정상 코드는 실제 테스트 실패가 확인된 경우에만 최소 수정한다.
 - **여전히 승인 범위 밖:** Firebase Storage/Billing 신규 활성화, 새 계정/credential 생성·요구, PR 생성, main merge, 범위를 바꾸는 기능 추가.
-- Firebase Hosting 재배포는 관리자 E2E에 꼭 필요한 코드 변경이 실제 발생한 경우에만 기존 절차로 수행한다. 불필요하면 재배포하지 않는다.
+- Firebase Hosting은 live 검사에서 admin bundle 부재가 실제 확인되어 승인 조건에 따라 재배포했다. Storage/Billing·PR/main merge는 변경하지 않았다.
 - 기존 untracked `NUL`, `tools/kto_data_probe/`는 보존하고 이번 commit 대상에서 제외한다.
 
-## 남은 실행 순서 — 중간 승인 없이 완료
+## 남은 실행 순서
 
-1. 이 PC에 Java 21 JDK를 설치하고 PATH/`java -version`을 확인한다.
-2. demo-project Emulator 명령을 실행해 6개 Rules 목표를 동적으로 증명한다.
-3. 실패 시 원인을 분석해 최소 수정하고 Emulator + 기존 test/lint/build를 재실행한다.
-4. PASS 후 `dangjeju` Firestore Rules를 live deploy하고 배포 성공을 확인한다.
-5. 현재 Owner가 실제로 로그인하는 Firebase Auth 계정의 UID를 안전하게 확인하고, 그 UID에만 `admins/{uid}` = `{ role: "admin", active: true }`를 1회 생성한다. UID를 추측하지 않는다.
-6. GitHub Pages와 Firebase Hosting에서 관리자 버튼/직접 URL 차단/Place update/Source write 거부/기존 로그인·찜·검색 회귀를 live E2E 확인한다. 실제 Place write가 필요하면 영향이 적은 필드를 사용하고 원래 값을 기록한 뒤 검증 후 원상복원한다.
-7. 결과를 STATE에 기록하고 feature branch commit/push 후 최종 SHA와 PASS/잔여 blocker만 보고한다.
-8. 새 Billing/Storage·새 credential·PR/main merge가 필요한 경우에만 그 지점에서 멈춘다.
+1. Owner 인증 상태의 지원 browser를 연결한다.
+2. Hosting/Pages에서 `관리` 버튼, 비로그인/비관리자 직접 URL 차단, 최소 Place update 후 원상복원, 로그인·찜 UI를 클릭 검증한다.
+3. 새 account/credential을 만들거나 custom-token 권한 우회를 사용하지 않는다.
 
 ## handoff
 
-코드 구현/독립 review Acceptance는 충족했고 기존 agy 코드 판정은 PASS다. Owner는 2026-09-19 이번 V1을 **중간 승인 없이 운영 적용·관리자 등록·live E2E까지 끝까지 완료**하도록 승인했다. Hank는 위 남은 실행 순서를 자율적으로 수행하고, 완료 후 STATE 갱신·commit/push·최종 보고 후 중단한다.
+코드 구현/기존 독립 review Acceptance와 이번 Emulator/agy 동적 검증은 PASS다. Rules, Owner admin 문서, Hosting은 운영 적용됐고 Pages/Hosting live asset 및 Firestore public/deny smoke도 PASS다. 남은 항목은 이 실행환경에 연결 browser가 없어 수행할 수 없었던 Owner 인증 UI click/write E2E뿐이다. 새 credential 없이 browser가 연결되면 위 3단계만 이어서 수행한다.

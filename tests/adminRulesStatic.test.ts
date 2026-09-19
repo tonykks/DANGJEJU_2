@@ -8,10 +8,10 @@ test('rules statically preserve admin/source/protected-field contracts', () => {
   assert.match(rules, /match \/admins\/\{uid\}[\s\S]*allow get: if isOwner\(uid\);[\s\S]*allow list, create, update, delete: if false;/);
   assert.match(rules, /match \/places\/\{placeId\}[\s\S]*allow create, delete: if false;[\s\S]*allow update: if isActiveAdmin\(\)/);
   assert.match(rules, /match \/sources\/\{sourceId\}[\s\S]*allow write: if false;/);
-  assert.match(rules, /affectedKeys\(\)\.hasOnly\(\[/);
-  assert.match(rules, /data\.manualAdmin\.source == 'ADMIN_UI'/);
+  assert.match(rules, /let affected = request\.resource\.data\.diff\(resource\.data\)\.affectedKeys\(\);[\s\S]*affected\.hasOnly\(\[/);
+  assert.match(rules, /let admin = data\.manualAdmin;[\s\S]*admin\.source == 'ADMIN_UI'/);
   assert.doesNotMatch(rules, /manualAdmin\.updatedBy/);
-  assert.match(rules, /data\.manualAdmin\.updatedAt == request\.time/);
+  assert.match(rules, /admin\.updatedAt == request\.time/);
   assert.match(rules, /data\.petPolicy\.diff\(oldData\.petPolicy\)\.affectedKeys\(\)/);
   assert.match(rules, /data\.petPolicy\.petInformationStatus == 'ADMIN_CONFIRMED'/);
   assert.match(rules, /changedTopLevel[\s\S]*affected\.difference/);

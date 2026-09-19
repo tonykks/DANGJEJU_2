@@ -194,32 +194,31 @@ service cloud.firestore {
     }
 
     function validManualAdmin(data, oldData, affected) {
-      return data.manualAdmin is map
-        && data.manualAdmin.keys().hasAll(['source', 'updatedAt', 'changedFields', 'changedTopLevel', 'clearedFields', 'managedFields'])
-        && data.manualAdmin.keys().hasOnly(['source', 'updatedAt', 'changedFields', 'changedTopLevel', 'clearedFields', 'managedFields'])
-        && data.manualAdmin.source == 'ADMIN_UI'
-        && data.manualAdmin.updatedAt is timestamp
-        && data.manualAdmin.updatedAt == request.time
-        && data.manualAdmin.changedFields is list
-        && data.manualAdmin.changedFields.size() > 0
-        && data.manualAdmin.changedFields.size() <= 60
-        && data.manualAdmin.changedFields.toSet().hasOnly(editableFieldNames())
-        && data.manualAdmin.changedTopLevel is list
-        && data.manualAdmin.changedTopLevel.size() > 0
-        && data.manualAdmin.changedTopLevel.size() == data.manualAdmin.changedTopLevel.toSet().size()
-        && data.manualAdmin.changedTopLevel.toSet().hasOnly(displayTopLevelNames())
-        && data.manualAdmin.changedTopLevel.toSet()
+      let admin = data.manualAdmin;
+      return admin is map
+        && admin.keys().hasAll(['source', 'updatedAt', 'changedFields', 'changedTopLevel', 'clearedFields', 'managedFields'])
+        && admin.keys().hasOnly(['source', 'updatedAt', 'changedFields', 'changedTopLevel', 'clearedFields', 'managedFields'])
+        && admin.source == 'ADMIN_UI'
+        && admin.updatedAt is timestamp
+        && admin.updatedAt == request.time
+        && admin.changedFields is list
+        && admin.changedFields.size() > 0
+        && admin.changedFields.size() <= 60
+        && admin.changedTopLevel is list
+        && admin.changedTopLevel.size() > 0
+        && admin.changedTopLevel.size() == admin.changedTopLevel.toSet().size()
+        && admin.changedTopLevel.toSet()
           == affected.difference(['manualAdmin', 'search', 'updatedAt', 'coordinateQualityStatus'].toSet())
-        && data.manualAdmin.clearedFields is list
-        && data.manualAdmin.clearedFields.size() <= 60
-        && data.manualAdmin.clearedFields.toSet().hasOnly(clearableRootFieldNames())
-        && validClearedValues(data)
-        && data.manualAdmin.managedFields is list
-        && data.manualAdmin.managedFields.size() <= 60
-        && data.manualAdmin.managedFields.toSet().hasOnly(editableFieldNames())
-        && data.manualAdmin.managedFields.toSet().hasAll(data.manualAdmin.changedFields)
+        && admin.clearedFields is list
+        && admin.clearedFields.size() <= 60
+        && admin.clearedFields.toSet().hasOnly(clearableRootFieldNames())
+        && (admin.clearedFields.size() == 0 || validClearedValues(data))
+        && admin.managedFields is list
+        && admin.managedFields.size() <= 60
+        && admin.managedFields.toSet().hasOnly(editableFieldNames())
+        && admin.managedFields.toSet().hasAll(admin.changedFields)
         && (!('manualAdmin' in oldData) || !('managedFields' in oldData.manualAdmin)
-          || data.manualAdmin.managedFields.toSet().hasAll(oldData.manualAdmin.managedFields));
+          || admin.managedFields.toSet().hasAll(oldData.manualAdmin.managedFields));
     }
 
     function validSearch(data, oldData) {
@@ -265,22 +264,51 @@ service cloud.firestore {
         && (!('regionArea' in data) || data.regionArea == null || (data.regionArea is string && data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN']))
         && (!affected.hasAny(['serviceCategory']) || (data.serviceCategory is string && data.serviceCategory in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT']))
         && (!affected.hasAny(['regionArea']) || (data.regionArea is string && data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN']))
-        && optionalText(data, 'address', 500) && optionalText(data, 'roadAddress', 500)
-        && optionalText(data, 'phone', 30) && optionalHttpUrl(data, 'primaryImageUrl')
-        && optionalHttpUrl(data, 'secondaryImageUrl') && optionalText(data, 'shortDescription', 500)
-        && optionalText(data, 'fullDescription', 4000) && optionalText(data, 'parkingInfo', 4000)
-        && optionalText(data, 'businessHours', 4000) && optionalText(data, 'closedDays', 500)
-        && optionalInstagramUrl(data, 'instagramUrl')
-        && optionalList(data, 'tags', 30) && optionalList(data, 'recommendedPoints', 30)
-        && optionalList(data, 'cautionNotes', 30)
+        && (!affected.hasAny(['address']) || optionalText(data, 'address', 500))
+        && (!affected.hasAny(['roadAddress']) || optionalText(data, 'roadAddress', 500))
+        && (!affected.hasAny(['phone']) || optionalText(data, 'phone', 30))
+        && (!affected.hasAny(['primaryImageUrl']) || optionalHttpUrl(data, 'primaryImageUrl'))
+        && (!affected.hasAny(['secondaryImageUrl']) || optionalHttpUrl(data, 'secondaryImageUrl'))
+        && (!affected.hasAny(['shortDescription']) || optionalText(data, 'shortDescription', 500))
+        && (!affected.hasAny(['fullDescription']) || optionalText(data, 'fullDescription', 4000))
+        && (!affected.hasAny(['parkingInfo']) || optionalText(data, 'parkingInfo', 4000))
+        && (!affected.hasAny(['businessHours']) || optionalText(data, 'businessHours', 4000))
+        && (!affected.hasAny(['closedDays']) || optionalText(data, 'closedDays', 500))
+        && (!affected.hasAny(['instagramUrl']) || optionalInstagramUrl(data, 'instagramUrl'))
+        && (!affected.hasAny(['tags']) || optionalList(data, 'tags', 30))
+        && (!affected.hasAny(['recommendedPoints']) || optionalList(data, 'recommendedPoints', 30))
+        && (!affected.hasAny(['cautionNotes']) || optionalList(data, 'cautionNotes', 30))
         && (!affected.hasAny(['latitude', 'longitude', 'coordinateQualityStatus']) || (
           (data.latitude == null || (data.latitude is number && data.latitude >= 32.5 && data.latitude <= 34.2))
           && (data.longitude == null || (data.longitude is number && data.longitude >= 125.5 && data.longitude <= 127.2))
           && data.coordinateQualityStatus == 'ADMIN_CONFIRMED'
         ))
-        && validPetPolicy(data)
-        && validAmenities(data)
-        && validAdminOverrides(data);
+        && (!affected.hasAny(['petPolicy']) || validPetPolicy(data))
+        && (!affected.hasAny(['amenities']) || validAmenities(data))
+        && (!affected.hasAny(['adminOverrides']) || validAdminOverrides(data));
+    }
+
+    function validPlaceUpdate(placeId) {
+      let affected = request.resource.data.diff(resource.data).affectedKeys();
+      return resource.data.placeId == placeId
+        && request.resource.data.placeId == placeId
+        && affected.hasOnly([
+          'name', 'serviceCategory', 'regionArea', 'address', 'roadAddress', 'latitude', 'longitude',
+          'coordinateQualityStatus', 'phone', 'primaryImageUrl', 'secondaryImageUrl',
+          'shortDescription', 'fullDescription', 'parkingInfo', 'businessHours', 'closedDays',
+          'instagramUrl', 'tags', 'petPolicy', 'amenities', 'recommendedPoints', 'cautionNotes',
+          'adminOverrides', 'manualAdmin', 'search', 'updatedAt'
+        ])
+        && affected.hasAll(['manualAdmin', 'search', 'updatedAt'])
+        && (!affected.hasAny(['coordinateQualityStatus'])
+          || affected.hasAny(['latitude', 'longitude']))
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.updatedAt == request.time
+        && validManualAdmin(request.resource.data, resource.data, affected)
+        && (!affected.hasAny(['petPolicy', 'adminOverrides'])
+          || validPetProvenance(request.resource.data, resource.data, affected))
+        && validPlaceDisplay(request.resource.data, affected)
+        && validSearch(request.resource.data, resource.data);
     }
 
     match /admins/{uid} {
@@ -303,30 +331,7 @@ service cloud.firestore {
       allow read: if true;
       allow create, delete: if false;
       allow update: if isActiveAdmin()
-        && resource.data.placeId == placeId
-        && request.resource.data.placeId == placeId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'name', 'serviceCategory', 'regionArea', 'address', 'roadAddress', 'latitude', 'longitude',
-          'coordinateQualityStatus', 'phone', 'primaryImageUrl', 'secondaryImageUrl',
-          'shortDescription', 'fullDescription', 'parkingInfo', 'businessHours', 'closedDays',
-          'instagramUrl', 'tags', 'petPolicy', 'amenities', 'recommendedPoints', 'cautionNotes',
-          'adminOverrides', 'manualAdmin', 'search', 'updatedAt'
-        ])
-        && request.resource.data.diff(resource.data).affectedKeys().hasAll(['manualAdmin', 'search', 'updatedAt'])
-        && request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'name', 'serviceCategory', 'regionArea', 'address', 'roadAddress', 'latitude', 'longitude',
-          'phone', 'primaryImageUrl', 'secondaryImageUrl', 'shortDescription', 'fullDescription',
-          'parkingInfo', 'businessHours', 'closedDays', 'instagramUrl', 'tags', 'petPolicy',
-          'amenities', 'recommendedPoints', 'cautionNotes', 'adminOverrides'
-        ])
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['coordinateQualityStatus'])
-          || request.resource.data.diff(resource.data).affectedKeys().hasAny(['latitude', 'longitude']))
-        && request.resource.data.updatedAt is timestamp
-        && request.resource.data.updatedAt == request.time
-        && validManualAdmin(request.resource.data, resource.data, request.resource.data.diff(resource.data).affectedKeys())
-        && validPetProvenance(request.resource.data, resource.data, request.resource.data.diff(resource.data).affectedKeys())
-        && validPlaceDisplay(request.resource.data, request.resource.data.diff(resource.data).affectedKeys())
-        && validSearch(request.resource.data, resource.data);
+        && validPlaceUpdate(placeId);
 
       match /sources/{sourceId} {
         allow read: if true;
