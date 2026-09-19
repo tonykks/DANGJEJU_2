@@ -2,7 +2,9 @@ name: Deploy Vite site to Pages
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
+      - feature/firestore-place-ui
   workflow_dispatch:
 
 permissions:
@@ -25,13 +27,33 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-         
 
       - name: Install dependencies
         run: npm install
 
+      - name: Require Firebase web config
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: |
+          test -n "$VITE_FIREBASE_API_KEY"
+          test -n "$VITE_FIREBASE_AUTH_DOMAIN"
+          test -n "$VITE_FIREBASE_PROJECT_ID"
+          test -n "$VITE_FIREBASE_APP_ID"
+
+      # Pages-only: --base=/DANGJEJU_2/. Firebase Hosting is a separate `vite build` without this flag.
       - name: Build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
         run: npm run build -- --base=/DANGJEJU_2/
+
+      - name: SPA fallback for GitHub Pages
+        run: cp dist/index.html dist/404.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
