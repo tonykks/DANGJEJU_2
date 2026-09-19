@@ -9,8 +9,8 @@
 - **요구사항 기준:** 루트 `requirement.md`
 - **현재 단계:** admin-place-editor-v1 코드는 그대로 유지. 후속 Firestore Rules Emulator 동적 검증을 agy에 맡겨 시도했으나 이 호스트에 Java가 없어 `BLOCKED_ENVIRONMENT`; 실제 Emulator test는 미실행이다.
 - **현재 담당 / LAST_UPDATED_BY:** Hank, 2026-09-19
-- **다음 담당 / 다음 행동:** Java 21이 이미 준비된 host/CI에서 아래 demo-project 전용 명령으로 Rules Emulator test를 실행한다. 실제 Rules 실패가 확인되기 전에는 정상 코드를 수정하지 않는다.
-- **Blocker:** `java` command/PATH 없음. 설치된 Firebase CLI는 15.28.1이며 CLI v15 Emulator 실행에는 Java 21 이상이 필요하다. Owner 지시대로 이 작업에서는 Java를 설치하지 않았다.
+- **다음 담당 / 다음 행동:** Owner가 2026-09-19 로컬 Java 21 JDK 설치를 승인했다. Hank가 이 PC에 Java 21을 설치·PATH 확인한 뒤 아래 demo-project 전용 명령으로 Rules Emulator 동적 테스트를 실행하고, PASS/FAIL을 기록한다. 실제 Rules 실패가 확인되기 전에는 정상 코드를 수정하지 않는다.
+- **Blocker:** 현재 `java` command/PATH 없음. 설치된 Firebase CLI는 15.28.1이며 CLI v15 Emulator 실행에는 Java 21 이상이 필요하다. **로컬 Java 21 설치는 이제 승인됨**. 단, Firebase live deploy·운영 DB 변경·Billing/Storage 변경은 여전히 금지한다.
 - **Hosting (기존 운영, 미배포):** https://dangjeju.web.app
 - **Pages (feature preview):** https://tonykks.github.io/DANGJEJU_2/ — feature push가 GitHub Pages workflow를 자동 실행한다.
 
@@ -61,7 +61,7 @@
 
 ## 다음 승인 순서
 
-1. Java 21이 준비된 격리 host/CI에서 위 demo-project Emulator 명령을 실행해 6개 Rules 목표를 동적으로 증명한다.
+1. 이 PC에 Java 21 JDK를 설치하고 PATH/`java -version`을 확인한 뒤, 위 demo-project Emulator 명령을 실행해 6개 Rules 목표를 동적으로 증명한다.
 2. Toby/Owner가 변경 코드와 Rules를 검토하고 Rules live deploy 여부를 승인한다.
 3. 승인된 안전한 1회 절차로 실제 담당자 UID의 `admins/{uid}` 문서를 생성한다.
 4. 관리자 로그인/직접 URL 거부/Place update/Source write 거부를 Firebase Hosting과 Pages에서 live E2E 확인한다.
@@ -69,4 +69,4 @@
 
 ## handoff
 
-코드 구현/독립 review Acceptance는 충족했고 기존 agy 코드 판정은 PASS다. 후속 Rules Emulator 동적 검증만 Java 부재로 미완료이며, harness coverage는 Ani가 확인했다. feature push는 Pages 자동 배포를 트리거하지만 Firebase Hosting이나 Firestore Rules를 배포하지 않는다.
+코드 구현/독립 review Acceptance는 충족했고 기존 agy 코드 판정은 PASS다. 후속 Rules Emulator 동적 검증만 Java 부재로 미완료이며, harness coverage는 Ani가 확인했다. Owner가 로컬 Java 21 JDK 설치를 승인했으므로 Hank는 설치 후 즉시 Emulator 검증을 이어간다. feature push는 Pages 자동 배포를 트리거하지만 Firebase Hosting이나 Firestore Rules를 배포하지 않는다.
