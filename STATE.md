@@ -7,12 +7,13 @@
 - **WORK_ID:** admin-place-editor-v1
 - **Branch:** `feature/firestore-place-ui`
 - **요구사항 기준:** 루트 `requirement.md`
-- **현재 단계:** Java 21 설치, Rules Emulator 동적 검증/최소 수정, agy 독립 재검증, Firestore Rules 운영 배포, 정확한 Owner Auth UID의 관리자 문서 생성, Firebase Hosting 재배포, 두 live site HTTP/Rules smoke까지 완료했다.
+- **현재 단계:** admin-place-editor-v1의 구현·Rules/관리자/Hosting 운영 적용과 자동 검증을 완료했다. 최종 구현 SHA `9ce33f4116f22015432a1f695bf9f84b8cd00a65`는 local/tracking/remote 및 성공한 Pages workflow와 일치하고, Hosting/Pages 최신 bundle·route·asset과 읽기 전용 live smoke도 재확인했다.
 - **현재 담당 / LAST_UPDATED_BY:** Hank, 2026-09-20
-- **다음 담당 / 다음 행동:** 연결 가능한 브라우저가 생기면 현재 Owner로 로그인해 두 live site의 `관리` 버튼, `#/admin/places` 직접 URL 차단, 최소 Place update/원상복원, 로그인·찜 UI를 최종 클릭 검증한다.
+- **다음 담당 / 다음 행동:** Owner가 지원 browser를 연결해 로그인한 뒤 아래 수동 확인 항목만 수행한다. 자동화 가능한 남은 작업은 없다.
 - **Blocker:** Browser runtime에서 사용 가능한 browser가 0개였고, 기존 Firebase CLI OAuth credential은 Firebase Web Auth의 Google provider client와 달라 표준 `signInWithIdp`가 400으로 거부됐다. privileged custom-token 우회나 새 계정/credential 생성은 사용하지 않았다. 따라서 **Owner 인증 브라우저 세션이 필요한 UI click/write E2E만 미완료**이며 나머지 운영 적용·검증은 완료다.
 - **Hosting (운영 재배포 완료):** https://dangjeju.web.app
 - **Pages (feature preview):** https://tonykks.github.io/DANGJEJU_2/ — feature push가 GitHub Pages workflow를 자동 실행한다.
+- **Firebase CLI session:** 노출됐던 CLI credential은 모든 Firebase 작업 종료 후 공식 `firebase logout`으로 제거했고, 민감정보 없이 `FIREBASE_LOGIN_COUNT=0`을 확인했다. 향후 Firebase CLI 작업에는 Owner의 대화형 `firebase login`이 필요하다.
 
 ## 완료 구현
 
@@ -50,6 +51,11 @@
 - 현재 Firebase CLI Owner account와 동일 이메일의 활성 Google-provider Firebase Auth user를 Identity Toolkit에서 1명으로 결정적으로 확인했다. UID를 출력·파일 저장하지 않고 그 UID에만 `admins/{uid}` = `{ role: "admin", active: true }`를 생성했으며 재조회 **PASS**.
 - 최초 live HTTP에서 Pages는 admin bundle을 포함했으나 Hosting은 stale bundle이었다. root build를 `firebase deploy --only hosting --project dangjeju`로 재배포한 뒤 두 site 모두 HTML/JS/CSS 200, `ADMIN_UI`/admins 계약과 `/admin/places` route 포함 **PASS**.
 - 운영 Firestore public Place read와 `name` 접두검색(limit 12) **PASS**. 고유 비인증 probe의 Place update, Source write, admins write, favorites write는 모두 live Rules에서 거부되어 데이터 변경 없음.
+- 최종 SHA 정합성: local `HEAD`, `origin/feature/firestore-place-ui`, 실제 remote ref가 모두 `9ce33f4116f22015432a1f695bf9f84b8cd00a65`; 동일 SHA의 GitHub Pages workflow run `35453259375`는 completed/success.
+- 최종 live asset 재확인: Hosting/Pages HTML·JS·CSS 모두 HTTP 200, 두 bundle 모두 `/admin/places`와 admin contract 포함. Hosting asset 이름과 SHA-256은 로컬 root build와 일치했다.
+- 남은 자동 회귀: 로그인 session 격리·logout/stale UID, 찜 add/delete/계정 전환/실패 복구, 검색 query/cache/quota, 관리자 route/editor/UI를 묶은 **55 PASS, 0 FAIL, 0 SKIP**.
+- 읽기 전용 live smoke: 공개 Place read와 `name` 접두검색 양성/limit 12, 비인증 admins list/favorites read 거부 모두 **PASS**.
+- Browser runtime은 재확인 시에도 available browser `0`이었다. 브라우저 우회, custom token, 새 account/credential 생성은 하지 않았다.
 - Java 21 host 안전 재실행 명령(PowerShell, 운영 접근 없음): `firebase.cmd emulators:exec --only firestore --project demo-admin-place-editor-rules "node_modules\.bin\tsx.cmd --test tests/firestoreRules.test.ts"`.
 - Owner 인증 browser가 없어 실제 관리자 UI Place write/restore와 owner favorites 클릭 회귀는 미실행이다. 위험한 인증 우회나 새 credential 생성 대신 Emulator 동적 test, live public search/비인증 deny probe, 두 live bundle smoke까지만 수행했다.
 
@@ -62,12 +68,14 @@
 - Firebase Hosting은 live 검사에서 admin bundle 부재가 실제 확인되어 승인 조건에 따라 재배포했다. Storage/Billing·PR/main merge는 변경하지 않았다.
 - 기존 untracked `NUL`, `tools/kto_data_probe/`는 보존하고 이번 commit 대상에서 제외한다.
 
-## 남은 실행 순서
+## Owner 수동 확인 항목
 
-1. Owner 인증 상태의 지원 browser를 연결한다.
-2. Hosting/Pages에서 `관리` 버튼, 비로그인/비관리자 직접 URL 차단, 최소 Place update 후 원상복원, 로그인·찜 UI를 클릭 검증한다.
-3. 새 account/credential을 만들거나 custom-token 권한 우회를 사용하지 않는다.
+1. 지원 browser에서 현재 Owner Google 계정으로 로그인한다.
+2. Hosting/Pages에서 `관리` 버튼 표시, `#/admin/places` 접근, 업체 검색을 확인한다.
+3. 영향이 적은 field 1개를 수정해 실제 화면 반영을 확인하고 즉시 원래 값으로 복원한다.
+4. 찜 추가 → 삭제 → 재로그인 후 저장 상태 복원을 확인한다.
+5. 이후 Firebase CLI 작업이 필요할 때만 Owner가 `firebase login`으로 다시 인증한다.
 
 ## handoff
 
-코드 구현/기존 독립 review Acceptance와 이번 Emulator/agy 동적 검증은 PASS다. Rules, Owner admin 문서, Hosting은 운영 적용됐고 Pages/Hosting live asset 및 Firestore public/deny smoke도 PASS다. 남은 항목은 이 실행환경에 연결 browser가 없어 수행할 수 없었던 Owner 인증 UI click/write E2E뿐이다. 새 credential 없이 browser가 연결되면 위 3단계만 이어서 수행한다.
+코드 구현/독립 review/Emulator/agy 검증과 Rules·Owner admin·Hosting 운영 적용은 완료됐다. 최종 SHA/Pages workflow, 두 live bundle, 로그인·찜·검색 자동 회귀, 읽기 전용 Firestore smoke도 PASS이며 Firebase CLI session은 제거됐다. 남은 것은 연결 browser 부재로 자동화할 수 없었던 위 Owner 인증 UI click/write 수동 확인뿐이다.
