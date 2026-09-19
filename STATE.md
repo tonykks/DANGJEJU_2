@@ -13,7 +13,7 @@
 - **Blocker:** Codex browser runtime에 연결된 browser가 0개라 수정 후 실제 Owner 로그인 UI write/화면 반영/복원 및 owner favorites 클릭 회귀를 자동 실행하지 못했다. Firebase CLI 로그인과 웹 앱 browser 연결은 별개다.
 - **Hosting:** https://dangjeju.web.app
 - **Pages:** https://tonykks.github.io/DANGJEJU_2/
-- **Firebase CLI session:** 이번 Rules/Hosting 재배포에만 Owner 로그인을 사용했고, 모든 Firebase 작업이 끝난 뒤 공식 `firebase logout`과 비민감 count로 제거 여부를 확인한다.
+- **Firebase CLI session:** 이번 Rules/Hosting 재배포에만 Owner 로그인을 사용했다. 마지막에 공식 `firebase logout`으로 OAuth revoke 200을 받았고, CLI config의 user/tokens 부재와 active/additional account 0개를 민감값 없이 확인했다.
 
 ## 이번 결함의 정확한 원인과 수정
 
@@ -50,13 +50,14 @@
 - Firestore Rules live deploy: compile/release PASS. 기존 미사용 helper warning 1개는 기능 영향이 없어 수정하지 않았다.
 - Firebase Hosting live deploy: 새 frontend bundle release PASS. 배포 후 HTML/JS/CSS와 placeholder asset HTTP 200, Hosting JS가 local root build와 일치 PASS.
 - 공개 운영 Firestore read-only smoke: hero 5개, WEST/CAFE 44개 정렬, Place/Source detail, ID 기반 favorite Place 해석, 32개 region/category query sample 모두 PASS. 승인 domain 3개도 PASS.
-- GitHub Pages는 feature push workflow 완료 후 HTML/JS/CSS, `/DANGJEJU_2/` asset prefix, SPA `404.html`, local Pages build hash 일치를 최종 재확인한다.
+- GitHub Pages workflow `35476167744`는 commit `bdb2793`에서 completed/success. 배포 HTML/JS/CSS 200, `/DANGJEJU_2/` asset prefix, JS/CSS SHA-256과 local Pages build 일치 PASS.
 - `git diff --check`: PASS.
 
 ## 운영 데이터와 복원
 
 - 이번 자동 검증은 운영 Place/Source/favorites를 쓰지 않았다. 실패 원인을 production write 재시도로 찾지 않고 실제 문서 read-only snapshot과 Emulator에서 재현했으므로 복원할 운영 test 값이 없다.
 - Firestore Rules와 Hosting만 승인 범위 안에서 재배포했다. Storage/Billing, 새 account/credential, PR/main merge는 건드리지 않았다.
+- `firebase logout`이 OAuth revoke 뒤 Windows Node assertion으로 exit 1을 반환했지만 credential config는 비어 있었다. logout이 만든 credential-bearing `firebase-debug.log`도 즉시 삭제해 잔존하지 않음을 확인했다.
 - 기존 untracked `NUL`, `tools/kto_data_probe/`는 보존하고 commit에서 제외한다.
 
 ## Owner 수동 확인 항목
