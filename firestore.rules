@@ -222,40 +222,38 @@ service cloud.firestore {
     }
 
     function validSearch(data, oldData) {
-      return data.search is map
-        && data.search.keys().hasAll([
+      let search = data.search;
+      let searchKeys = [
           'version', 'region', 'category', 'regionBasis', 'categoryBasis', 'basicScore',
           'petScore', 'totalScore', 'scoreVersion', 'petTier', 'petSortKey',
           'primarySourceId', 'inputHash', 'derivedAt'
-        ])
-        && data.search.keys().hasOnly([
-          'version', 'region', 'category', 'regionBasis', 'categoryBasis', 'basicScore',
-          'petScore', 'totalScore', 'scoreVersion', 'petTier', 'petSortKey',
-          'primarySourceId', 'inputHash', 'derivedAt'
-        ])
-        && data.search.version == 1
-        && data.search.scoreVersion == 'hank-place-field-audit-v1'
-        && data.search.region in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN']
-        && data.search.category in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT', 'UNKNOWN']
-        && data.search.regionBasis in ['SERVICE_REGION', 'ADDRESS_EAST', 'ADDRESS_WEST', 'MUNICIPALITY', 'UNKNOWN']
-        && data.search.categoryBasis in ['SERVICE_CATEGORY', 'KTO_CONTENT_TYPE', 'KTO_CAT3', 'TITLE_FALLBACK', 'UNKNOWN']
-        && data.search.basicScore is int && data.search.basicScore >= 0 && data.search.basicScore <= 15
-        && data.search.petScore is int && data.search.petScore >= 0 && data.search.petScore <= 9
-        && data.search.totalScore is int
-        && data.search.totalScore == data.search.basicScore + data.search.petScore
-        && data.search.petTier in ['RICH', 'PARTIAL', 'BASIC', 'UNKNOWN']
-        && ((data.search.petTier == 'RICH' && data.search.petScore >= 5 && data.search.petSortKey == 30000 + data.search.petScore * 100 + data.search.basicScore)
-          || (data.search.petTier == 'PARTIAL' && data.search.petScore >= 2 && data.search.petScore <= 4 && data.search.petSortKey == 20000 + data.search.petScore * 100 + data.search.basicScore)
-          || (data.search.petTier == 'BASIC' && data.search.petScore <= 1 && data.search.petSortKey == 10000 + data.search.petScore * 100 + data.search.basicScore)
-          || (data.search.petTier == 'UNKNOWN' && data.search.petScore == 0 && data.search.petSortKey == data.search.basicScore))
-        && data.search.primarySourceId is string
-        && data.search.primarySourceId == oldData.search.primarySourceId
-        && data.search.inputHash is string
-        && data.search.inputHash.matches('^[a-f0-9]{64}$')
-        && data.search.derivedAt is timestamp
-        && data.search.derivedAt == request.time
-        && (!('serviceCategory' in data) || !(data.serviceCategory is string) || data.search.category == data.serviceCategory)
-        && (!('regionArea' in data) || !(data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST']) || data.search.region == data.regionArea);
+        ];
+      return search is map
+        && search.keys().hasAll(searchKeys)
+        && search.keys().hasOnly(searchKeys)
+        && search.version == 1
+        && search.scoreVersion == 'hank-place-field-audit-v1'
+        && search.region in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN']
+        && search.category in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT', 'UNKNOWN']
+        && search.regionBasis in ['SERVICE_REGION', 'ADDRESS_EAST', 'ADDRESS_WEST', 'MUNICIPALITY', 'UNKNOWN']
+        && search.categoryBasis in ['SERVICE_CATEGORY', 'KTO_CONTENT_TYPE', 'KTO_CAT3', 'TITLE_FALLBACK', 'UNKNOWN']
+        && search.basicScore is int && search.basicScore >= 0 && search.basicScore <= 15
+        && search.petScore is int && search.petScore >= 0 && search.petScore <= 9
+        && search.totalScore is int
+        && search.totalScore == search.basicScore + search.petScore
+        && search.petTier in ['RICH', 'PARTIAL', 'BASIC', 'UNKNOWN']
+        && ((search.petTier == 'RICH' && search.petScore >= 5 && search.petSortKey == 30000 + search.petScore * 100 + search.basicScore)
+          || (search.petTier == 'PARTIAL' && search.petScore >= 2 && search.petScore <= 4 && search.petSortKey == 20000 + search.petScore * 100 + search.basicScore)
+          || (search.petTier == 'BASIC' && search.petScore <= 1 && search.petSortKey == 10000 + search.petScore * 100 + search.basicScore)
+          || (search.petTier == 'UNKNOWN' && search.petScore == 0 && search.petSortKey == search.basicScore))
+        && search.primarySourceId is string
+        && search.primarySourceId == oldData.search.primarySourceId
+        && search.inputHash is string
+        && search.inputHash.matches('^[a-f0-9]{64}$')
+        && search.derivedAt is timestamp
+        && search.derivedAt == request.time
+        && (!('serviceCategory' in data) || !(data.serviceCategory is string) || search.category == data.serviceCategory)
+        && (!('regionArea' in data) || !(data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST']) || search.region == data.regionArea);
     }
 
     function validPlaceDisplay(data, affected) {

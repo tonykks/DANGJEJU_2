@@ -95,6 +95,7 @@ export type AdminEditPlan = {
   patch: Record<string, unknown>;
   nextPlace: Record<string, unknown>;
   changes: { id: string; label: string; before: unknown; after: unknown; cleared: boolean }[];
+  unchangedSelections: { id: string; label: string; value: unknown }[];
 };
 
 function documentData(snapshot: QueryDocumentSnapshot): CatalogDocument {
@@ -297,6 +298,7 @@ export function buildAdminEditPlan(
     ...clearedFields,
   ]);
   const candidates: { definition: AdminFieldDefinition; before: unknown; after: unknown; clear: boolean }[] = [];
+  const unchangedSelections: AdminEditPlan['unchangedSelections'] = [];
 
   for (const definition of ADMIN_FIELD_DEFINITIONS) {
     if (!selected.has(definition.id)) continue;
@@ -306,7 +308,10 @@ export function buildAdminEditPlan(
     const visibleAfter = definition.target === 'root' && clear
       ? currentRootValue(definition, { ...original, [definition.key]: after, manualAdmin: { ...previousAudit, clearedFields: [...clearedFields, definition.id] } }, loaded.source.data)
       : definition.target === 'petDetail' && clear ? '' : after;
-    if (equal(before, visibleAfter)) continue;
+    if (equal(before, visibleAfter)) {
+      unchangedSelections.push({ id: definition.id, label: definition.label, value: before });
+      continue;
+    }
     if (definition.target === 'root') {
       nextPlace[definition.key] = after;
       patch[definition.key] = after;
@@ -335,7 +340,9 @@ export function buildAdminEditPlan(
     after,
     cleared: clear,
   }));
-  if (!changes.length) throw new Error('선택한 항목에 실제 변경값이 없습니다.');
+  if (!changes.length) {
+    throw new Error(`현재 표시값과 같아 저장에서 제외된 선택 항목: ${unchangedSelections.map(({ label }) => label).join(', ')}`);
+  }
   const petFactsChanged = changes.some(({ id }) => id.startsWith('petDetails.') || id.startsWith('petPolicy.'));
   if (petFactsChanged) {
     const beforeStatus = objectValue(original.petPolicy).petInformationStatus ?? 'UNKNOWN';
@@ -388,7 +395,7 @@ export function buildAdminEditPlan(
   };
   nextPlace.manualAdmin = manualAdmin;
   patch.manualAdmin = manualAdmin;
-  return { patch, nextPlace, changes };
+  return { patch, nextPlace, changes, unchangedSelections };
 }
 
 function revisionToken(value: unknown): string {

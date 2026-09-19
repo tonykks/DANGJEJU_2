@@ -52,6 +52,54 @@ test('edit plan changes only selected display fields and preserves explicit clea
   assert.deepEqual((plan.patch.manualAdmin as Record<string, unknown>).managedFields, ['amenities.freeParking', 'phone', 'shortDescription']);
   assert.equal((plan.patch.manualAdmin as Record<string, unknown>).source, 'ADMIN_UI');
   assert.equal('updatedBy' in (plan.patch.manualAdmin as Record<string, unknown>), false);
+  assert.deepEqual(plan.unchangedSelections, []);
+});
+
+test('multiple distinct edits all appear and the confirmation changes match the display patch', () => {
+  const fixture = loaded();
+  const plan = buildAdminEditPlan(fixture, ['shortDescription', 'phone', 'primaryImageUrl'], {
+    shortDescription: '새 한 줄 설명',
+    phone: '064-123-4567',
+    primaryImageUrl: 'https://example.test/new.jpg',
+  }, [], 'admin-uid');
+  const displayedChanges = Object.fromEntries(plan.changes.map(({ id, after }) => [id, after]));
+  assert.deepEqual(displayedChanges, {
+    shortDescription: '새 한 줄 설명',
+    phone: '064-123-4567',
+    primaryImageUrl: 'https://example.test/new.jpg',
+  });
+  assert.deepEqual(
+    Object.fromEntries(Object.keys(displayedChanges).map((id) => [id, plan.patch[id]])),
+    displayedChanges,
+  );
+  assert.deepEqual(plan.unchangedSelections, []);
+});
+
+test('multiple explicit clears all appear when their effective values exist', () => {
+  const fixture = loaded();
+  (fixture.source.data.kto as Record<string, unknown>).firstImage = 'https://example.test/current.jpg';
+  const ids = ['shortDescription', 'phone', 'primaryImageUrl'];
+  const plan = buildAdminEditPlan(fixture, ids, {}, ids, 'admin-uid');
+  assert.deepEqual(plan.changes.map(({ id }) => id), ids);
+  assert.equal(plan.changes.every(({ cleared }) => cleared), true);
+  assert.deepEqual(
+    Object.fromEntries(ids.map((id) => [id, plan.patch[id]])),
+    { shortDescription: '', phone: '', primaryImageUrl: '' },
+  );
+  assert.deepEqual((plan.patch.manualAdmin as Record<string, unknown>).clearedFields, ['phone', 'primaryImageUrl', 'shortDescription']);
+});
+
+test('selected fields omitted only because their effective value is unchanged are identified', () => {
+  const fixture = loaded();
+  const plan = buildAdminEditPlan(fixture, ['shortDescription', 'phone'], {
+    shortDescription: '음식점', phone: '064-123-4567',
+  }, [], 'admin-uid');
+  assert.deepEqual(plan.changes.map(({ id }) => id), ['phone']);
+  assert.deepEqual(plan.unchangedSelections, [{ id: 'shortDescription', label: '한 줄 설명', value: '음식점' }]);
+  assert.throws(
+    () => buildAdminEditPlan(fixture, ['shortDescription'], { shortDescription: '음식점' }, [], 'admin-uid'),
+    /현재 표시값과 같아 저장에서 제외된 선택 항목: 한 줄 설명/,
+  );
 });
 
 test('pet text uses sparse override, clear uses key presence, and source is untouched', () => {
@@ -80,8 +128,8 @@ test('pet fact edits automatically become administrator-confirmed without exposi
 
 test('effective fallbacks do not become false overrides and nested leaf projection preserves siblings', () => {
   const fixture = loaded();
-  assert.throws(() => buildAdminEditPlan(fixture, ['shortDescription'], { shortDescription: '음식점' }, [], 'admin'), /실제 변경값이 없습니다/);
-  assert.throws(() => buildAdminEditPlan(fixture, ['fullDescription'], { fullDescription: '상세 소개 정보가 아직 등록되지 않았습니다.' }, [], 'admin'), /실제 변경값이 없습니다/);
+  assert.throws(() => buildAdminEditPlan(fixture, ['shortDescription'], { shortDescription: '음식점' }, [], 'admin'), /현재 표시값과 같아 저장에서 제외된 선택 항목: 한 줄 설명/);
+  assert.throws(() => buildAdminEditPlan(fixture, ['fullDescription'], { fullDescription: '상세 소개 정보가 아직 등록되지 않았습니다.' }, [], 'admin'), /현재 표시값과 같아 저장에서 제외된 선택 항목: 상세 설명/);
   const plan = buildAdminEditPlan(fixture, ['amenities.freeParking'], { 'amenities.freeParking': 'TRUE' }, [], 'admin');
   const concurrent = structuredClone(fixture.place.data);
   (concurrent.amenities as Record<string, unknown>).dogMenu = 'TRUE';

@@ -10,6 +10,7 @@ const emulator = process.env.FIRESTORE_EMULATOR_HOST;
 
 function restValue(value: unknown): Record<string, unknown> {
   if (value === null) return { nullValue: null };
+  if (value instanceof Date) return { timestampValue: value.toISOString() };
   if (typeof value === 'string') return { stringValue: value };
   if (typeof value === 'boolean') return { booleanValue: value };
   if (typeof value === 'number') return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
@@ -37,6 +38,15 @@ const basePlace = {
   phone: '064-000-0000', primaryImageUrl: null, secondaryImageUrl: null, shortDescription: null, fullDescription: null,
   parkingInfo: null, businessHours: null, closedDays: null, instagramUrl: null, tags: null,
   recommendedPoints: null, cautionNotes: null, petPolicy, amenities, search: baseSearch,
+};
+const aouAouLiveShapePlace = {
+  placeId: 'kto-99999999', name: '아우아우', serviceCategory: null, regionArea: null, municipality: 'JEJU_CITY',
+  address: '제주특별자치도 제주시', roadAddress: null, latitude: 33.4, longitude: 126.4, coordinateQualityStatus: 'OK',
+  phone: null, primaryImageUrl: null, secondaryImageUrl: null, shortDescription: null, fullDescription: null,
+  parkingInfo: null, businessHours: null, closedDays: null, instagramUrl: null, tags: null,
+  recommendedPoints: null, cautionNotes: null, petPolicy, amenities,
+  search: { ...baseSearch, derivedAt: new Date('2026-09-19T00:00:00.000Z') },
+  updatedAt: new Date('2026-09-19T00:00:00.000Z'),
 };
 
 function validUpdate(uid: string, name: string) {
@@ -83,6 +93,7 @@ test('rules enforce active-admin place updates while preserving public catalog a
   };
   try {
     await seed('places/kto-1', basePlace);
+    await seed('places/kto-99999999', aouAouLiveShapePlace);
     const sparsePlace = { ...basePlace, placeId: 'kto-3', search: { ...baseSearch } } as Record<string, unknown>;
     delete sparsePlace.serviceCategory;
     delete sparsePlace.regionArea;
@@ -129,6 +140,38 @@ test('rules enforce active-admin place updates while preserving public catalog a
     assert.equal((await getDoc(doc(guest, 'places/kto-1'))).data()?.name, '관리자 변경');
     await updateDoc(doc(active, 'places/kto-3'), validUpdate('active-admin', 'sparse 관리자 변경'));
     assert.equal((await getDoc(doc(guest, 'places/kto-3'))).data()?.name, 'sparse 관리자 변경');
+    const liveShapeChanges = {
+      phone: '064-123-4567',
+      primaryImageUrl: 'https://example.test/aou-aou.jpg',
+      shortDescription: '반려견과 함께 쉬어 가는 공간',
+    };
+    await updateDoc(doc(active, 'places/kto-99999999'), {
+      ...liveShapeChanges,
+      manualAdmin: {
+        source: 'ADMIN_UI', updatedAt: serverTimestamp(),
+        changedFields: ['phone', 'primaryImageUrl', 'shortDescription'],
+        changedTopLevel: ['phone', 'primaryImageUrl', 'shortDescription'],
+        clearedFields: [], managedFields: ['phone', 'primaryImageUrl', 'shortDescription'],
+      },
+      search: { ...baseSearch, inputHash: '9'.repeat(64), derivedAt: serverTimestamp() },
+      updatedAt: serverTimestamp(),
+    });
+    const savedLiveShape = (await getDoc(doc(guest, 'places/kto-99999999'))).data();
+    assert.deepEqual(
+      Object.fromEntries(Object.keys(liveShapeChanges).map((key) => [key, savedLiveShape?.[key]])),
+      liveShapeChanges,
+    );
+
+    for (const search of [
+      { ...baseSearch, injected: true },
+      { ...baseSearch, totalScore: 13 },
+      { ...baseSearch, primarySourceId: 'other-source' },
+    ]) {
+      await denied(updateDoc(doc(active, 'places/kto-1'), {
+        ...validUpdate('active-admin', '검색 보호값 공격'),
+        search: { ...search, inputHash: '8'.repeat(64), derivedAt: serverTimestamp() },
+      }));
+    }
 
     await denied(updateDoc(doc(active, 'places/kto-1'), { ...validUpdate('active-admin', '보호값 공격'), placeId: 'kto-evil' }));
     await denied(updateDoc(doc(active, 'places/kto-1'), {

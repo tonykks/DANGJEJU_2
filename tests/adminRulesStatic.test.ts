@@ -10,6 +10,7 @@ test('rules statically preserve admin/source/protected-field contracts', () => {
   assert.match(rules, /match \/sources\/\{sourceId\}[\s\S]*allow write: if false;/);
   assert.match(rules, /let affected = request\.resource\.data\.diff\(resource\.data\)\.affectedKeys\(\);[\s\S]*affected\.hasOnly\(\[/);
   assert.match(rules, /let admin = data\.manualAdmin;[\s\S]*admin\.source == 'ADMIN_UI'/);
+  assert.match(rules, /let search = data\.search;[\s\S]*let searchKeys = \[[\s\S]*search\.keys\(\)\.hasAll\(searchKeys\)[\s\S]*search\.keys\(\)\.hasOnly\(searchKeys\)/);
   assert.doesNotMatch(rules, /manualAdmin\.updatedBy/);
   assert.match(rules, /admin\.updatedAt == request\.time/);
   assert.match(rules, /data\.petPolicy\.diff\(oldData\.petPolicy\)\.affectedKeys\(\)/);

@@ -56,6 +56,18 @@ function PreviewImage({ src, label }: { src: string; label: string }) {
   );
 }
 
+export function AdminUnchangedSelectionNotice({ selections }: { selections: AdminEditPlan['unchangedSelections'] }) {
+  if (!selections.length) return null;
+  return (
+    <div role="note" className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+      <p className="font-bold">현재 표시값과 같아 저장에서 제외된 선택 항목</p>
+      <ul className="mt-1 list-disc pl-5 text-xs">
+        {selections.map((selection) => <li key={selection.id}>{selection.label}: {formatAdminValue(selection.value)}</li>)}
+      </ul>
+    </div>
+  );
+}
+
 export default function AdminPlaceEditor({ uid, onHome }: Props) {
   const [queryText, setQueryText] = useState('');
   const [results, setResults] = useState<Awaited<ReturnType<typeof searchAdminPlacesByName>>>([]);
@@ -236,6 +248,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
             <ul className="mt-4 space-y-2">
               {plan.changes.map((change) => <li key={change.id} className="rounded-xl border border-slate-200 p-3 text-sm"><strong>{change.label}</strong><div className="mt-1 grid grid-cols-[1fr_auto_1fr] gap-2 text-xs text-slate-600"><span className="break-words">{formatAdminValue(change.before)}</span><span>→</span><span className="break-words font-bold text-slate-900">{change.cleared ? '(명시적으로 지움)' : formatAdminValue(change.after)}</span></div></li>)}
             </ul>
+            <AdminUnchangedSelectionNotice selections={plan.unchangedSelections} />
             {message && <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{message}</div>}
             <div className="mt-5 flex justify-end gap-2"><button onClick={() => setPlan(null)} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold">돌아가기</button><button onClick={() => void save()} disabled={busy} className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{busy ? '저장 중…' : '확인하고 저장'}</button></div>
           </section>
