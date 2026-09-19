@@ -1,22 +1,32 @@
-import type { Place, PlaceCategory, RegionId } from '../types.ts';
+import type { Place, PlaceCategory, RegionId, TriState } from '../types.ts';
 import {
   SEARCH_CATEGORY_TO_UI,
   SEARCH_REGION_TO_UI,
   type PlaceSearchFields,
   type SearchCategory,
 } from './searchTypes.ts';
+import {
+  effectiveList,
+  effectiveNumber,
+  effectivePetDetails,
+  effectiveText,
+  hasPetDetailOverrides,
+  isManuallyCleared,
+  normalizeHttpUrl,
+  objectValue,
+  stringValues,
+  trimmedText,
+} from './effectivePlace.ts';
 
 export type CatalogDocument = { id: string; path: string; data: Record<string, unknown> };
 export const PLACEHOLDER_IMAGE = `${import.meta.env?.BASE_URL ?? '/'}place-placeholder.svg`;
 export const PET_KNOWN_LABEL = 'KTO 반려동물 정보 확인됨';
+export const PET_ADMIN_LABEL = '관리자 확인 반려동물 정보';
 export const PET_UNKNOWN_LABEL = '반려동물 정보 미확인';
 export const PET_UNKNOWN_NOTICE = '반려동물 동반 관련 정보가 아직 확인되지 않았습니다. 동반 불가를 의미하지 않으며, 방문 전 해당 시설에 동반 가능 여부와 이용 조건을 직접 확인해 주세요.';
 
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-function text(value: unknown): string { return typeof value === 'string' ? value.trim() : ''; }
-function strings(value: unknown): string[] { return Array.isArray(value) ? value.map(text).filter(Boolean) : []; }
+const record = objectValue;
+const text = trimmedText;
 
 // Prefer Firestore search.category when present. Fallback mirrors Owner 8-kind rules.
 export function categoryFor(contentTypeId: unknown, cat3: unknown, title: string): PlaceCategory {
@@ -74,8 +84,8 @@ function coordinate(value: unknown): number | null {
 }
 
 export function coordinatesFor(place: Record<string, unknown>, kto: Record<string, unknown>): Place['coordinates'] {
-  const lat = coordinate(place.latitude ?? kto.mapy);
-  const lng = coordinate(place.longitude ?? kto.mapx);
+  const lat = effectiveNumber(place, 'latitude', kto.mapy);
+  const lng = effectiveNumber(place, 'longitude', kto.mapx);
   // Same broad Jeju bounds as import QA, including Chuja/Marado. Never correct an anomaly.
   if (place.coordinateQualityStatus === 'SOURCE_ANOMALY' || lat === null || lng === null ||
       lat < 32.5 || lat > 34.2 || lng < 125.5 || lng > 127.2) return null;
@@ -83,19 +93,16 @@ export function coordinatesFor(place: Record<string, unknown>, kto: Record<strin
 }
 
 function imageUrl(value: unknown): string {
-  const candidate = text(value);
-  if (!/^https?:\/\//i.test(candidate)) return '';
-  // KTO photo endpoints support HTTPS; avoid mixed content on the app's HTTPS page.
-  return candidate.replace(/^http:/i, 'https:');
+  return normalizeHttpUrl(value);
 }
 
-const PET_FIELDS = [
-  ['acmpyTypeCd', '동반 유형'], ['acmpyNeedMtr', '동반 시 필요 사항'],
-  ['acmpyPsblCpam', '동반 가능 동물'], ['etcAcmpyInfo', '기타 동반 안내'],
-  ['relaAcdntRiskMtr', '관련 사고 위험 사항'], ['relaFrnshPrdlst', '비치 품목'],
-  ['relaPosesFclty', '보유 시설'], ['relaPurcPrdlst', '구매 가능 품목'],
-  ['relaRntlPrdlst', '대여 가능 품목'],
-] as const;
+function triState(value: unknown): TriState {
+  return value === 'TRUE' || value === 'FALSE' ? value : 'UNKNOWN';
+}
+
+function serviceCategory(value: unknown): PlaceCategory | null {
+  return categoryFromSearch(text(value).toUpperCase());
+}
 
 export function adaptPlace(document: CatalogDocument, sources: CatalogDocument[] = []): Place {
   const data = document.data;
@@ -107,58 +114,99 @@ export function adaptPlace(document: CatalogDocument, sources: CatalogDocument[]
     .sort((a, b) => a.id.localeCompare(b.id))[0];
   const kto = record(source?.data.kto);
   const policy = record(data.petPolicy);
-  const known = policy.petInformationStatus === 'KTO_OVERLAY_FOUND';
-  const pet = known ? record(kto.pet) : {};
-  const petDetails = PET_FIELDS.flatMap(([key, label]) => text(pet[key]) ? [{ key, label, value: text(pet[key]) }] : []);
-  const petInformationLabel = known ? PET_KNOWN_LABEL : PET_UNKNOWN_LABEL;
+  const rawStatus = policy.petInformationStatus;
+  const petInformationStatus = rawStatus === 'KTO_OVERLAY_FOUND' || rawStatus === 'ADMIN_CONFIRMED'
+    ? rawStatus
+    : 'UNKNOWN';
+  const known = petInformationStatus !== 'UNKNOWN';
+  const allPetDetails = effectivePetDetails(data, source?.data ?? {});
+  const petDetails = known ? allPetDetails : [];
+  const adminPetInformation = petInformationStatus === 'ADMIN_CONFIRMED' || hasPetDetailOverrides(data);
+  const petInformationLabel = petInformationStatus === 'ADMIN_CONFIRMED'
+    ? PET_ADMIN_LABEL
+    : petInformationStatus === 'KTO_OVERLAY_FOUND'
+      ? (adminPetInformation ? '관리자 보완 · KTO 반려동물 정보' : PET_KNOWN_LABEL)
+      : PET_UNKNOWN_LABEL;
   const search = readSearch(data);
-  const name = text(data.name) || text(kto.title) || document.id;
-  const address = text(data.address) || text(kto.addr1);
+  const name = effectiveText(data, 'name', kto.title) || document.id;
+  const address = effectiveText(data, 'address', kto.addr1);
+  const roadAddress = effectiveText(data, 'roadAddress', address);
   const imageFallbackUrls = [...new Set([
-    imageUrl(data.primaryImageUrl), imageUrl(data.secondaryImageUrl),
-    imageUrl(kto.firstImage), imageUrl(kto.firstImage2), PLACEHOLDER_IMAGE,
+    imageUrl(effectiveText(data, 'primaryImageUrl', kto.firstImage)),
+    imageUrl(effectiveText(data, 'secondaryImageUrl', kto.firstImage2)),
+    !isManuallyCleared(data, 'primaryImageUrl') ? imageUrl(kto.firstImage) : '',
+    !isManuallyCleared(data, 'secondaryImageUrl') ? imageUrl(kto.firstImage2) : '',
+    PLACEHOLDER_IMAGE,
   ].filter(Boolean))];
   const searchedRegion = regionFromSearch(search?.region);
   const searchedCategory = categoryFromSearch(search?.category);
   // Prefer stored search.* (query path). Fallback keeps offline/legacy docs usable.
-  const regionInfo = searchedRegion ?? regionFor(address, data.municipality);
-  const category = searchedCategory ?? categoryFor(kto.contentTypeId, kto.cat3, name);
+  const explicitRegion = regionFromSearch(text(data.regionArea));
+  const regionInfo = searchedRegion ?? explicitRegion ?? regionFor(roadAddress || address, data.municipality);
+  const category = searchedCategory ?? serviceCategory(data.serviceCategory) ?? categoryFor(kto.contentTypeId, kto.cat3, name);
+  const fallbackRecommended = petDetails
+    .filter((detail) => !['acmpyNeedMtr', 'relaAcdntRiskMtr'].includes(detail.key))
+    .map((detail) => `${detail.label}: ${detail.value}`);
+  const fallbackCautions = petDetails
+    .filter((detail) => ['acmpyNeedMtr', 'relaAcdntRiskMtr'].includes(detail.key))
+    .map((detail) => `${detail.label}: ${detail.value}`);
   return {
-    id: document.id, name, address, roadAddress: text(data.roadAddress) || address,
+    id: document.id, name, address, roadAddress,
     ...regionInfo,
     category,
-    shortDesc: text(data.shortDescription) || text(kto.contentTypeName) || '제주 관광 장소',
-    fullDesc: text(data.fullDescription) || '상세 소개 정보가 아직 등록되지 않았습니다.',
-    contactNumber: text(data.phone) || text(kto.tel),
-    parkingInfo: text(data.parkingInfo) || '주차 정보 미확인',
-    businessHours: text(data.businessHours) || '운영시간 미확인',
-    closedDays: text(data.closedDays) || undefined,
+    shortDesc: effectiveText(data, 'shortDescription', kto.contentTypeName) || '제주 관광 장소',
+    fullDesc: effectiveText(data, 'fullDescription') || '상세 소개 정보가 아직 등록되지 않았습니다.',
+    contactNumber: effectiveText(data, 'phone', kto.tel),
+    parkingInfo: effectiveText(data, 'parkingInfo') || '주차 정보 미확인',
+    businessHours: effectiveText(data, 'businessHours') || '운영시간 미확인',
+    closedDays: effectiveText(data, 'closedDays') || undefined,
+    instagram: effectiveText(data, 'instagramUrl') || undefined,
     coordinates: coordinatesFor(data, kto),
-    petInformationStatus: known ? 'KTO_OVERLAY_FOUND' : 'UNKNOWN',
+    petInformationStatus,
     petInformationLabel,
     petInformationNotice: known
-      ? 'KTO에서 제공한 반려동물 관련 정보입니다. 방문 전 해당 시설에 최신 동반 가능 여부와 이용 조건을 확인해 주세요.'
+      ? adminPetInformation
+        ? '관리자가 확인하거나 보완한 반려동물 정보입니다. 방문 전 해당 시설에 최신 이용 조건을 확인해 주세요.'
+        : 'KTO에서 제공한 반려동물 관련 정보입니다. 방문 전 해당 시설에 최신 동반 가능 여부와 이용 조건을 확인해 주세요.'
       : PET_UNKNOWN_NOTICE,
     petDetails,
     petTier: search?.petTier,
     totalScore: search?.totalScore,
     petScore: search?.petScore,
-    // Compatibility fields are deliberately conservative. UNKNOWN and free text never
-    // establish a permission, a restriction, a fee, or an amenity. UI uses status/details.
     petPolicy: {
-      allowedSizes: [], sizeDescription: '동반 가능 크기 미확인', spacePolicy: 'unknown',
-      spaceDescription: '공간 이용 조건 미확인', leashRequired: false,
-      leashDescription: '리드줄 이용 조건 미확인', offLeashZoneAvailable: false,
-      petFee: null, indoorAllowed: false, outdoorAllowed: false,
+      petInformationStatus,
+      petAcceptance: triState(policy.petAcceptance),
+      smallDogAllowed: triState(policy.smallDogAllowed),
+      mediumDogAllowed: triState(policy.mediumDogAllowed),
+      largeDogAllowed: triState(policy.largeDogAllowed),
+      indoorAllowed: triState(policy.indoorAllowed),
+      outdoorAllowed: triState(policy.outdoorAllowed),
+      carrierRequired: triState(policy.carrierRequired),
+      leashRequired: triState(policy.leashRequired),
+      offLeashZoneAvailable: triState(policy.offLeashZoneAvailable),
+      allowedBreeds: stringValues(policy.allowedBreeds),
+      allowedSizes: stringValues(policy.allowedSizes),
+      sizeDescription: text(policy.sizeDescription),
+      spacePolicy: text(policy.spacePolicy) || 'unknown',
+      spaceDescription: text(policy.spaceDescription),
+      leashDescription: text(policy.leashDescription),
+      petFee: typeof policy.petFee === 'number' && Number.isFinite(policy.petFee) ? policy.petFee : null,
+      petFeeDescription: text(policy.petFeeDescription),
+      otherPetPolicy: text(policy.otherPetPolicy),
     },
     amenities: {
-      freeParking: false, parkingDescription: text(record(data.amenities).parkingDescription),
-      dogMenu: false, waterBowlProvided: false, wasteBagsProvided: false, fencedYard: false, photoZone: false,
+      freeParking: triState(record(data.amenities).freeParking),
+      parkingDescription: text(record(data.amenities).parkingDescription),
+      dogMenu: triState(record(data.amenities).dogMenu),
+      waterBowlProvided: triState(record(data.amenities).waterBowlProvided),
+      wasteBagsProvided: triState(record(data.amenities).wasteBagsProvided),
+      fencedYard: triState(record(data.amenities).fencedYard),
+      photoZone: triState(record(data.amenities).photoZone),
     },
-    recommendedPoints: petDetails.filter((d) => !['acmpyNeedMtr', 'relaAcdntRiskMtr'].includes(d.key)).map((d) => `${d.label}: ${d.value}`),
-    cautionNotes: petDetails.filter((d) => ['acmpyNeedMtr', 'relaAcdntRiskMtr'].includes(d.key)).map((d) => `${d.label}: ${d.value}`),
+    recommendedPoints: effectiveList(data, 'recommendedPoints') ?? fallbackRecommended,
+    cautionNotes: effectiveList(data, 'cautionNotes') ?? fallbackCautions,
     imageUrl: imageFallbackUrls[0], imageFallbackUrls,
-    tags: strings(data.tags),
+    tags: effectiveList(data, 'tags') ?? [],
   };
 }
 
@@ -179,7 +227,7 @@ export function joinPlacesCatalog(placeDocs: CatalogDocument[], sourceDocs: Cata
   }
   // Preserve query order (e.g. petSortKey DESC). Do not re-sort by name for search results.
   const places = placeDocs.map((p) => adaptPlace(p, byPlace.get(p.id) ?? []));
-  const known = places.filter((p) => p.petInformationStatus === 'KTO_OVERLAY_FOUND').length;
+  const known = places.filter((p) => p.petInformationStatus === 'KTO_OVERLAY_FOUND' || p.petInformationStatus === 'ADMIN_CONFIRMED').length;
   return {
     places,
     counts: {

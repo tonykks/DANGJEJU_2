@@ -49,8 +49,8 @@ export function useHeroPlaces(enabled: boolean) {
   };
 }
 
-export function usePlaceSearch(region: RegionId, category: PlaceCategory) {
-  const ready = region !== 'all' && category !== 'all'
+export function usePlaceSearch(region: RegionId, category: PlaceCategory, enabled = true) {
+  const ready = enabled && region !== 'all' && category !== 'all'
     && region in UI_REGION_TO_SEARCH
     && category in UI_CATEGORY_TO_SEARCH;
   const [places, setPlaces] = useState<Place[]>([]);

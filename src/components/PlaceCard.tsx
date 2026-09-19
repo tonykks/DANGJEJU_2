@@ -101,7 +101,7 @@ export default function PlaceCard({
         <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1 text-white text-[10px] font-bold drop-shadow-md">
           <MapPin className="w-3 h-3 text-amber-300 shrink-0" />
           <span className="truncate">{place.regionName}</span>
-          {place.petPolicy.offLeashZoneAvailable && (
+          {place.petPolicy.offLeashZoneAvailable === 'TRUE' && (
             <span className="ml-auto px-1.5 py-0.2 rounded bg-teal-500 text-white text-[9px] font-black">
               오프리쉬
             </span>
@@ -124,7 +124,7 @@ export default function PlaceCard({
           </p>
 
           <div className="mt-2 flex flex-wrap gap-1">
-            <span className={`rounded-md border px-1.5 py-0.5 text-[10px] sm:text-[11px] font-bold ${place.petInformationStatus === 'KTO_OVERLAY_FOUND' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
+            <span className={`rounded-md border px-1.5 py-0.5 text-[10px] sm:text-[11px] font-bold ${place.petInformationStatus === 'KTO_OVERLAY_FOUND' || place.petInformationStatus === 'ADMIN_CONFIRMED' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
               {place.petInformationLabel}
             </span>
           </div>

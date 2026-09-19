@@ -47,9 +47,9 @@ test('UNKNOWN never invents dog sizes, free admission, indoor/outdoor permission
   assert.deepEqual(result.petPolicy.allowedSizes, []);
   assert.equal(result.petPolicy.spacePolicy, 'unknown');
   assert.equal(result.petPolicy.petFee, null);
-  assert.equal(result.petPolicy.indoorAllowed, false);
-  assert.equal(result.petPolicy.outdoorAllowed, false);
-  assert.equal(result.amenities.waterBowlProvided, false);
+  assert.equal(result.petPolicy.indoorAllowed, 'UNKNOWN');
+  assert.equal(result.petPolicy.outdoorAllowed, 'UNKNOWN');
+  assert.equal(result.amenities.waterBowlProvided, 'UNKNOWN');
 });
 
 test('known pet information retains provided keys as text, omitting blank/missing fields without inferring booleans', () => {
@@ -57,8 +57,8 @@ test('known pet information retains provided keys as text, omitting blank/missin
   assert.equal(result.petInformationLabel, PET_KNOWN_LABEL);
   assert.deepEqual(result.petDetails?.map((d) => d.key), ['acmpyTypeCd', 'acmpyNeedMtr', 'acmpyPsblCpam', 'relaFrnshPrdlst']);
   assert.deepEqual(result.cautionNotes, ['동반 시 필요 사항: 목줄 필수\n전화 문의']);
-  assert.equal(result.petPolicy.leashRequired, false);
-  assert.equal(result.amenities.waterBowlProvided, false);
+  assert.equal(result.petPolicy.leashRequired, 'UNKNOWN');
+  assert.equal(result.amenities.waterBowlProvided, 'UNKNOWN');
   assert.equal(result.petPolicy.petFee, null);
 });
 
@@ -66,6 +66,34 @@ test('known status survives missing source text, without fabricating details', (
   const result = adaptPlace(place(undefined, { petPolicy: { petInformationStatus: 'KTO_OVERLAY_FOUND' } }));
   assert.equal(result.petInformationStatus, 'KTO_OVERLAY_FOUND');
   assert.deepEqual(result.petDetails, []);
+});
+
+test('administrator-confirmed places count as known catalog entries', () => {
+  const result = joinPlacesCatalog([place('kto-1', { petPolicy: { petInformationStatus: 'ADMIN_CONFIRMED' } })], []);
+  assert.equal(result.counts.known, 1);
+  assert.equal(result.counts.unknown, 0);
+});
+
+test('admin pet overrides use key presence, explicit clear blocks KTO fallback, and labels are not falsely KTO-only', () => {
+  const result = adaptPlace(place(undefined, {
+    petPolicy: { petInformationStatus: 'KTO_OVERLAY_FOUND' },
+    adminOverrides: { petDetails: { acmpyNeedMtr: '관리자 확인 목줄', relaFrnshPrdlst: '' } },
+  }), [source(undefined, { pet: { acmpyNeedMtr: 'KTO 목줄', relaFrnshPrdlst: 'KTO 물그릇', acmpyTypeCd: '부분동반' } })]);
+  assert.match(result.petInformationLabel!, /관리자 보완/);
+  assert.deepEqual(result.petDetails?.map(({ key, value, source: detailSource }) => [key, value, detailSource]), [
+    ['acmpyTypeCd', '부분동반', 'KTO'],
+    ['acmpyNeedMtr', '관리자 확인 목줄', 'ADMIN'],
+  ]);
+  assert.equal(result.recommendedPoints.some((point) => point.includes('물그릇')), false);
+});
+
+test('manual clear metadata blocks service-to-KTO fallback for user-visible root fields', () => {
+  const result = adaptPlace(place(undefined, {
+    phone: '', primaryImageUrl: '',
+    manualAdmin: { clearedFields: ['phone', 'primaryImageUrl'] },
+  }), [source(undefined, { tel: '064-999-9999', firstImage: 'https://example.com/kto.jpg' })]);
+  assert.equal(result.contactNumber, '');
+  assert.equal(result.imageFallbackUrls?.includes('https://example.com/kto.jpg'), false);
 });
 
 test('photos use primary, secondary, same-place source, neutral placeholder; unsafe URLs ignored', () => {

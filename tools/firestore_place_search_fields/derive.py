@@ -67,6 +67,39 @@ def first_nonblank(*values: Any) -> str | None:
     return None
 
 
+def manual_cleared_fields(place: dict) -> set[str]:
+    audit = place.get("manualAdmin") if isinstance(place.get("manualAdmin"), dict) else {}
+    values = audit.get("clearedFields") if isinstance(audit.get("clearedFields"), list) else []
+    return {v.strip() for v in values if isinstance(v, str) and v.strip()}
+
+
+def effective_text(place: dict, field: str, *fallbacks: Any) -> str | None:
+    if field in manual_cleared_fields(place):
+        return None
+    return first_nonblank(place.get(field), *fallbacks)
+
+
+def effective_number(place: dict, field: str, *fallbacks: Any) -> float | None:
+    if field in manual_cleared_fields(place):
+        return None
+    for value in (place.get(field), *fallbacks):
+        parsed = parse_number(value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def effective_pet_values(place: dict, source: dict) -> dict[str, str | None]:
+    kto = source.get("kto") if isinstance(source.get("kto"), dict) else {}
+    pet = kto.get("pet") if isinstance(kto.get("pet"), dict) else {}
+    admin = place.get("adminOverrides") if isinstance(place.get("adminOverrides"), dict) else {}
+    overrides = admin.get("petDetails") if isinstance(admin.get("petDetails"), dict) else {}
+    return {
+        key: (overrides.get(key) if key in overrides else pet.get(key))
+        for key in PET_KEYS
+    }
+
+
 def parse_number(value: Any) -> float | None:
     if isinstance(value, bool) or value is None:
         return None
@@ -110,10 +143,10 @@ def content_type_id(raw: Any) -> str | None:
 
 
 def derive_region(place: dict, kto: dict) -> tuple[str, str]:
-    address = (place.get("address") if isinstance(place.get("address"), str) else "") or ""
-    if not address.strip():
-        addr1 = kto.get("addr1") if isinstance(kto.get("addr1"), str) else ""
-        address = addr1
+    explicit = place.get("regionArea")
+    if explicit in ("JEJU_CITY", "SEOGWIPO_CITY", "EAST", "WEST"):
+        return explicit, "SERVICE_REGION"
+    address = effective_text(place, "roadAddress") or effective_text(place, "address", kto.get("addr1")) or ""
     east = re.search(r"구좌|조천|성산|표선", address)
     if east:
         return "EAST", "ADDRESS_EAST"
@@ -128,7 +161,12 @@ def derive_region(place: dict, kto: dict) -> tuple[str, str]:
     return "UNKNOWN", "UNKNOWN"
 
 
-def derive_category(kto: dict, title: str) -> tuple[str, str]:
+def derive_category(place: dict, kto: dict, title: str) -> tuple[str, str]:
+    service = place.get("serviceCategory")
+    if isinstance(service, str) and service.strip().upper() in {
+        "ATTRACTION", "CAFE", "FOOD", "SHOPPING", "STAY", "LEISURE", "CULTURE", "EVENT"
+    }:
+        return service.strip().upper(), "SERVICE_CATEGORY"
     cid = content_type_id(kto.get("contentTypeId"))
     mapping = {
         "12": ("ATTRACTION", "KTO_CONTENT_TYPE"),
@@ -164,7 +202,7 @@ def present_basic_and_pet(place: dict, source: dict) -> tuple[int, int, str, str
         if ok:
             present_basic += 1
 
-    raw_name = first_nonblank(p.get("name"), k.get("title"))
+    raw_name = effective_text(p, "name", k.get("title"))
     name_n = text_norm(raw_name) if raw_name is not None else None
     add_basic(bool(name_n) and name_n != place_id and not is_placeholder(name_n))
     display_name = name_n if name_n and name_n != place_id and not is_placeholder(name_n) else (place_id or "")
@@ -173,7 +211,7 @@ def present_basic_and_pet(place: dict, source: dict) -> tuple[int, int, str, str
     type_name = text_norm(k.get("contentTypeName")) if isinstance(k.get("contentTypeName"), str) else None
     add_basic(bool(code and type_name and CONTENT_TYPE_LABELS.get(code) == type_name and not is_placeholder(type_name)))
 
-    raw_addr = first_nonblank(p.get("roadAddress"), p.get("address"), k.get("addr1"))
+    raw_addr = effective_text(p, "roadAddress") or effective_text(p, "address", k.get("addr1"))
     addr_n = text_norm(raw_addr) if raw_addr is not None else None
     add_basic(bool(addr_n) and not is_placeholder(addr_n))
 
@@ -181,39 +219,40 @@ def present_basic_and_pet(place: dict, source: dict) -> tuple[int, int, str, str
     addr2_n = text_norm(raw_addr2) if raw_addr2 is not None else None
     add_basic(bool(addr2_n) and not is_placeholder(addr2_n) and addr2_n not in (addr_n or ""))
 
-    lat = parse_number(p.get("latitude") if p.get("latitude") is not None else k.get("mapy"))
-    lng = parse_number(p.get("longitude") if p.get("longitude") is not None else k.get("mapx"))
+    lat = effective_number(p, "latitude", k.get("mapy"))
+    lng = effective_number(p, "longitude", k.get("mapx"))
     add_basic(
         p.get("coordinateQualityStatus") != "SOURCE_ANOMALY"
         and lat is not None and lng is not None
         and 32.5 <= lat <= 34.2 and 125.5 <= lng <= 127.2
     )
 
-    raw_phone = first_nonblank(p.get("phone"), k.get("tel"))
+    raw_phone = effective_text(p, "phone", k.get("tel"))
     phone_n = text_norm(raw_phone) if raw_phone is not None else None
     add_basic(bool(phone_n) and not is_placeholder(phone_n))
 
-    images = [p.get("primaryImageUrl"), p.get("secondaryImageUrl"), k.get("firstImage"), k.get("firstImage2")]
+    images = [effective_text(p, "primaryImageUrl", k.get("firstImage")),
+              effective_text(p, "secondaryImageUrl", k.get("firstImage2"))]
     add_basic(any(isinstance(c, str) and valid_http_url(c) for c in images))
 
-    raw_short = p.get("shortDescription") if isinstance(p.get("shortDescription"), str) else None
+    raw_short = effective_text(p, "shortDescription")
     short_n = text_norm(raw_short) if raw_short is not None else None
     type_name_raw = text_norm(k.get("contentTypeName")) if isinstance(k.get("contentTypeName"), str) else None
     service_cat = text_norm(p.get("serviceCategory")) if isinstance(p.get("serviceCategory"), str) else None
     add_basic(bool(short_n) and not is_placeholder(short_n) and short_n not in SHORT_DESC_REJECT
               and short_n != type_name_raw and short_n != service_cat)
 
-    raw_full = p.get("fullDescription") if isinstance(p.get("fullDescription"), str) else None
+    raw_full = effective_text(p, "fullDescription")
     full_n = text_norm(raw_full) if raw_full is not None else None
     short_ok = bool(short_n) and not is_placeholder(short_n) and short_n not in SHORT_DESC_REJECT
     add_basic(bool(full_n) and not is_placeholder(full_n) and not (short_ok and full_n == short_n))
 
     for key in ("parkingInfo", "businessHours", "closedDays"):
-        raw = p.get(key) if isinstance(p.get(key), str) else None
+        raw = effective_text(p, key)
         n = text_norm(raw) if raw is not None else None
         add_basic(bool(n) and not is_placeholder(n))
 
-    raw_ig = p.get("instagramUrl") if isinstance(p.get("instagramUrl"), str) else None
+    raw_ig = effective_text(p, "instagramUrl")
     ig_n = text_norm(raw_ig) if raw_ig is not None else None
     if ig_n:
         url = valid_http_url(ig_n)
@@ -237,14 +276,16 @@ def present_basic_and_pet(place: dict, source: dict) -> tuple[int, int, str, str
     has_join = (s.get("collector") or {}).get("hasPetJoin")
     pet_obj = k.get("pet")
     overlay = status == "KTO_OVERLAY_FOUND" and has_join == "Y" and isinstance(pet_obj, dict)
+    admin_confirmed = status == "ADMIN_CONFIRMED"
     unknown = status == "UNKNOWN" and has_join == "N" and pet_obj is None
-    if not overlay and not unknown:
+    if not overlay and not admin_confirmed and not unknown:
         raise ValueError(f"pet status mismatch for {place_id}")
 
     pet_score = 0
-    if overlay:
+    if overlay or admin_confirmed:
+        effective_pet = effective_pet_values(place, source)
         for key in PET_KEYS:
-            raw = pet_obj.get(key) if isinstance(pet_obj.get(key), str) else None
+            raw = effective_pet.get(key) if isinstance(effective_pet.get(key), str) else None
             n = text_norm(raw) if raw is not None else None
             if n and not is_placeholder(n):
                 pet_score += 1
@@ -253,7 +294,7 @@ def present_basic_and_pet(place: dict, source: dict) -> tuple[int, int, str, str
 
 
 def pet_tier(status: str, pet_score: int) -> str:
-    if status != "KTO_OVERLAY_FOUND":
+    if status == "UNKNOWN":
         return "UNKNOWN"
     if pet_score >= 5:
         return "RICH"
@@ -277,7 +318,7 @@ def derive_search(place: dict, source: dict) -> dict:
     kto = source.get("kto") or {}
     basic, pet, status, display_name = present_basic_and_pet(place, source)
     region, region_basis = derive_region(place, kto)
-    category, category_basis = derive_category(kto, display_name)
+    category, category_basis = derive_category(place, kto, display_name)
     tier = pet_tier(status, pet)
     sort_key = pet_sort_key(tier, pet, basic)
     primary = source.get("placeSourceId") or source.get("id")
@@ -307,12 +348,15 @@ def derive_search(place: dict, source: dict) -> dict:
     # Hash excludes derived output values that are computed; hash inputs + rule versions only
     input_payload.pop("derived", None)
     body["inputHash"] = canonical_hash({
-        "placeKeys": {k: place.get(k) for k in (
-            "placeId", "name", "address", "roadAddress", "municipality", "latitude", "longitude",
-            "coordinateQualityStatus", "phone", "primaryImageUrl", "secondaryImageUrl",
-            "shortDescription", "fullDescription", "parkingInfo", "businessHours", "closedDays",
-            "instagramUrl", "tags", "serviceCategory", "petPolicy",
-        )},
+        "placeKeys": {
+            **{k: place.get(k) for k in (
+                "placeId", "name", "address", "roadAddress", "municipality", "regionArea", "latitude", "longitude",
+                "coordinateQualityStatus", "phone", "primaryImageUrl", "secondaryImageUrl",
+                "shortDescription", "fullDescription", "parkingInfo", "businessHours", "closedDays",
+                "instagramUrl", "tags", "serviceCategory", "petPolicy", "adminOverrides",
+            )},
+            "manualClearedFields": sorted(manual_cleared_fields(place)),
+        },
         "sourceKeys": {
             "placeSourceId": source.get("placeSourceId"),
             "placeId": source.get("placeId"),

@@ -23,3 +23,6 @@
 | 2026-09-15 | handoff-discipline | Toby가 Owner에게 한 줄 재개 지시를 안내하기 전에는, 자신이 쓴 `STATE.md`가 해당 작업 branch에 commit/push 되었고 remote tip에서 실제로 보이는지 확인한다. | Owner가 긴 프롬프트 운반자가 되는 것을 막고 GitHub SSOT를 실제 통신 채널로 사용한다. |
 | 2026-09-15 | handoff-discipline | 정상 동작 중인 기능은 함부로 수정하지 않는다. 불가피하게 수정하면 최소 범위로 하고 완료 보고에 `수정 파일 / 수정 함수·로직 / 수정 이유 / 기존 정상 기능 영향`을 반드시 적는다. | 이미 통과한 기능의 회귀와 원인 불명 변경을 방지한다. |
 | 2026-09-19 | github-pages-preview | GitHub Pages는 `feature/firestore-place-ui` 미리보기. `vite --base=/DANGJEJU_2/`는 Pages workflow만. Firebase Hosting은 `vite build`(base `/`) 유지. Firebase web config는 Actions secrets. | 팀 공유용 미리보기와 운영 Hosting 경로를 분리한다. |
+| 2026-09-19 | admin-place-editor-v1 | 관리자 판별은 `admins/{uid}`의 `role=admin`, `active=true`; Client는 자기 문서 read만 가능하고 관리자 문서 write는 금지한다. | 이메일/UID 하드코딩 없이 UI와 Firestore Rules를 같은 UID 권한 원천으로 묶는다. |
+| 2026-09-19 | admin-place-editor-v1 | KTO Source는 immutable로 두고, 일반 표시값은 Place 서비스 field, KTO 전용 Pet 상세는 sparse `adminOverrides.petDetails`, 명시 삭제는 `manualAdmin.clearedFields`로 표현한다. | 관리자 보완 우선순위와 원천 provenance를 함께 보존하고 향후 Agent 후보 승인도 같은 저장 경로를 재사용한다. |
+| 2026-09-19 | admin-place-editor-v1 | V1 이미지는 URL 입력/검증/preview까지만 포함하고 Storage 파일 업로드는 별도 승인으로 둔다. | Storage/Billing/Rules 운영 설정은 이번 승인 범위가 아니다. |

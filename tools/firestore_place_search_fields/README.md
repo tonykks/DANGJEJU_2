@@ -35,3 +35,29 @@ Current Stage3 snapshot contract is exactly 2126 places/sources (sha gated); ref
 `scoreVersion = hank-place-field-audit-v1` (basic 0–15 + pet 0–9).
 `petTier`: RICH≥5, PARTIAL 2–4, BASIC overlay 0–1, UNKNOWN.
 `petSortKey = tierRank*10000 + petScore*100 + basicScore`.
+
+Admin edits use the same effective-input contract in Python and TypeScript:
+
+1. `adminOverrides.petDetails` key presence (including `""` for an explicit clear)
+2. Place root service fields; `manualAdmin.clearedFields` blocks KTO fallback
+3. immutable canonical KTO Source fallback
+4. UI placeholder (never scored as data)
+
+`serviceCategory` and `regionArea` override KTO-derived search category/region. Pet scoring reads the
+nine effective pet-detail texts for both KTO and `ADMIN_CONFIRMED` status. The input hash includes
+`adminOverrides`, `regionArea`, and the persistent cleared-field set, but excludes audit timestamps.
+
+## Admin UI write contract
+
+The admin editor writes only changed leaf paths (for example `petPolicy.indoorAllowed`,
+`amenities.freeParking`, or `adminOverrides.petDetails.acmpyNeedMtr`) in a Firestore transaction.
+The transaction re-reads the Place and requires its `updatedAt` revision to match the revision loaded
+for confirmation, then stores the leaf changes, derived `search`, and audit metadata atomically.
+
+`manualAdmin.changedFields` describes the current save, `changedTopLevel` mirrors the actual display
+top-level diff, and `managedFields` is the cumulative union of fields managed through the admin UI.
+`manualAdmin.source` is the non-sensitive marker `ADMIN_UI`; no Firebase UID is stored in the public
+Place document. `clearedFields` is limited to explicitly clearable root display fields. Any actual
+pet-policy or pet-detail edit automatically writes `petPolicy.petInformationStatus=ADMIN_CONFIRMED`.
+`tests/fixtures/searchDerivation.json` is evaluated by both implementations; the TypeScript test
+compares the complete result, including SHA-256, against Python.

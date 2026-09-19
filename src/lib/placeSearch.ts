@@ -24,7 +24,7 @@ export function readSearchFields(data: Record<string, unknown>): PlaceSearchFiel
   return s as unknown as PlaceSearchFields;
 }
 
-async function guarded<T>(work: () => Promise<T>): Promise<T> {
+export async function guardedFirestoreRead<T>(work: () => Promise<T>): Promise<T> {
   assertNotInQuotaCooldown();
   try {
     return await work();
@@ -36,7 +36,7 @@ async function guarded<T>(work: () => Promise<T>): Promise<T> {
 
 /** Home hero: totalScore >= 12, top HERO_LIMIT. No Source reads. */
 export function loadHeroPlaces(db: Firestore): Promise<CatalogDocument[]> {
-  return guarded(async () => {
+  return guardedFirestoreRead(async () => {
     const snapshot = await getDocs(query(
       collection(db, 'places'),
       where('search.version', '==', SEARCH_VERSION),
@@ -57,7 +57,7 @@ export function searchPlaces(
   if (region === 'UNKNOWN' || category === 'UNKNOWN') {
     return Promise.reject(new Error('Invalid search filters'));
   }
-  return guarded(async () => {
+  return guardedFirestoreRead(async () => {
     const snapshot = await getDocs(query(
       collection(db, 'places'),
       where('search.version', '==', SEARCH_VERSION),
@@ -71,7 +71,7 @@ export function searchPlaces(
 
 export function getPlace(db: Firestore, placeId: string): Promise<CatalogDocument | null> {
   if (!placeId || placeId.includes('/')) return Promise.reject(new Error('Invalid place ID'));
-  return guarded(async () => {
+  return guardedFirestoreRead(async () => {
     const snapshot = await getDoc(doc(db, 'places', placeId));
     return snapshot.exists() ? documentData(snapshot as QueryDocumentSnapshot) : null;
   });
@@ -85,7 +85,7 @@ export function getPlaceSource(
   if (!placeId || !sourceId || placeId.includes('/') || sourceId.includes('/')) {
     return Promise.reject(new Error('Invalid place/source ID'));
   }
-  return guarded(async () => {
+  return guardedFirestoreRead(async () => {
     const snapshot = await getDoc(doc(db, 'places', placeId, 'sources', sourceId));
     return snapshot.exists() ? documentData(snapshot as QueryDocumentSnapshot) : null;
   });

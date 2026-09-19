@@ -17,6 +17,24 @@ import {
   Copy
 } from 'lucide-react';
 
+const TRI_LABEL = { TRUE: '가능/제공', FALSE: '불가/미제공', UNKNOWN: '미확인' } as const;
+const POLICY_LABELS: [keyof Place['petPolicy'], string][] = [
+  ['petAcceptance', '반려동물 동반'], ['smallDogAllowed', '소형견'], ['mediumDogAllowed', '중형견'],
+  ['largeDogAllowed', '대형견'], ['indoorAllowed', '실내'], ['outdoorAllowed', '실외'],
+  ['carrierRequired', '이동장 필요'], ['leashRequired', '리드줄 필요'], ['offLeashZoneAvailable', '오프리쉬 공간'],
+];
+const AMENITY_LABELS: [keyof Place['amenities'], string][] = [
+  ['freeParking', '무료 주차'], ['dogMenu', '반려견 메뉴'], ['waterBowlProvided', '물그릇'],
+  ['wasteBagsProvided', '배변봉투'], ['fencedYard', '펜스 공간'], ['photoZone', '포토존'],
+];
+
+function policyValueLabel(key: keyof Place['petPolicy'], value: 'TRUE' | 'FALSE' | 'UNKNOWN') {
+  if (key === 'carrierRequired' || key === 'leashRequired') {
+    return value === 'TRUE' ? '필수' : value === 'FALSE' ? '필수 아님' : '미확인';
+  }
+  return TRI_LABEL[value];
+}
+
 interface PlaceDetailModalProps {
   place: Place | null;
   isOpen: boolean;
@@ -61,6 +79,11 @@ export default function PlaceDetailModal({
       handleCopyAddress();
     }
   };
+
+  const policyFacts = POLICY_LABELS.map(([key, label]) => ({ key, label, value: place.petPolicy[key] }))
+    .filter((fact): fact is { key: keyof Place['petPolicy']; label: string; value: keyof typeof TRI_LABEL } => typeof fact.value === 'string' && fact.value in TRI_LABEL && fact.value !== 'UNKNOWN');
+  const amenityFacts = AMENITY_LABELS.map(([key, label]) => ({ key, label, value: place.amenities[key] }))
+    .filter((fact): fact is { key: keyof Place['amenities']; label: string; value: keyof typeof TRI_LABEL } => typeof fact.value === 'string' && fact.value in TRI_LABEL && fact.value !== 'UNKNOWN');
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
@@ -177,8 +200,32 @@ export default function PlaceDetailModal({
                     <div key={detail.key} className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
                       <dt className="text-xs font-bold text-slate-500">{detail.label}</dt>
                       <dd className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-800">{detail.value}</dd>
+                      <span className="mt-1 inline-block text-[10px] font-bold text-slate-400">
+                        {detail.source === 'ADMIN' ? '관리자 확인 정보' : 'KTO 제공 정보'}
+                      </span>
                     </div>
                   ))}
+                </dl>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {policyFacts.map((fact) => (
+                  <div key={String(fact.key)} className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="text-[11px] font-bold text-slate-500">{fact.label}</div>
+                    <div className="mt-1 text-xs font-bold text-slate-800">{policyValueLabel(fact.key, fact.value)}</div>
+                  </div>
+                ))}
+              </div>
+              {(place.petPolicy.allowedBreeds.length > 0 || place.petPolicy.allowedSizes.length > 0 || place.petPolicy.sizeDescription || (place.petPolicy.spacePolicy && place.petPolicy.spacePolicy !== 'unknown') || place.petPolicy.spaceDescription || place.petPolicy.leashDescription || place.petPolicy.petFee !== null || place.petPolicy.petFeeDescription || place.petPolicy.otherPetPolicy) && (
+                <dl className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-2">
+                  {place.petPolicy.allowedBreeds.length > 0 && <div><dt className="font-bold">허용 견종</dt><dd>{place.petPolicy.allowedBreeds.join(', ')}</dd></div>}
+                  {place.petPolicy.allowedSizes.length > 0 && <div><dt className="font-bold">허용 크기</dt><dd>{place.petPolicy.allowedSizes.join(', ')}</dd></div>}
+                  {place.petPolicy.sizeDescription && <div><dt className="font-bold">크기 조건</dt><dd>{place.petPolicy.sizeDescription}</dd></div>}
+                  {place.petPolicy.spacePolicy && place.petPolicy.spacePolicy !== 'unknown' && <div><dt className="font-bold">공간 정책</dt><dd>{place.petPolicy.spacePolicy}</dd></div>}
+                  {place.petPolicy.spaceDescription && <div><dt className="font-bold">공간 조건</dt><dd>{place.petPolicy.spaceDescription}</dd></div>}
+                  {place.petPolicy.leashDescription && <div><dt className="font-bold">리드줄 조건</dt><dd>{place.petPolicy.leashDescription}</dd></div>}
+                  {place.petPolicy.petFee !== null && <div><dt className="font-bold">반려동물 요금</dt><dd>{place.petPolicy.petFee.toLocaleString()}원 {place.petPolicy.petFeeDescription}</dd></div>}
+                  {place.petPolicy.petFee === null && place.petPolicy.petFeeDescription && <div><dt className="font-bold">반려동물 요금 안내</dt><dd>{place.petPolicy.petFeeDescription}</dd></div>}
+                  {place.petPolicy.otherPetPolicy && <div><dt className="font-bold">기타 정책</dt><dd>{place.petPolicy.otherPetPolicy}</dd></div>}
                 </dl>
               )}
             </div>
@@ -196,6 +243,7 @@ export default function PlaceDetailModal({
                       <div className="text-sm font-bold text-slate-800 mt-0.5">
                         {place.roadAddress || place.address || '주소 미확인'}
                       </div>
+                      {place.roadAddress && place.address && place.roadAddress !== place.address && <div className="mt-1 text-xs text-slate-500">지번: {place.address}</div>}
                     </div>
                   </div>
                   <button
@@ -231,6 +279,14 @@ export default function PlaceDetailModal({
                     </a> : <span className="text-xs text-slate-500">연락처 미확인</span>}
                   </div>
                 </div>
+                {place.closedDays && (
+                  <div className="pt-3 border-t border-slate-200/80 text-xs text-slate-700">
+                    <span className="font-bold">휴무일:</span> {place.closedDays}
+                  </div>
+                )}
+                {place.coordinates && (
+                  <div className="text-[11px] text-slate-500">좌표 {place.coordinates.lat}, {place.coordinates.lng}</div>
+                )}
               </div>
 
               {/* Map link buttons */}
@@ -265,12 +321,32 @@ export default function PlaceDetailModal({
                 {!place.petDetails?.length && <p className="mt-2">{place.petInformationNotice}</p>}
               </div>
 
+              {amenityFacts.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {amenityFacts.map((fact) => (
+                    <div key={String(fact.key)} className="rounded-xl border border-slate-200 bg-white p-3 text-xs">
+                      <span className="font-bold text-slate-700">{fact.label}</span>
+                      <span className="block mt-1 text-slate-500">{TRI_LABEL[fact.value]}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {place.amenities.parkingDescription && <p className="text-xs text-slate-600">주차 편의: {place.amenities.parkingDescription}</p>}
+              {place.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">{place.tags.map((tag) => <span key={tag} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">#{tag}</span>)}</div>
+              )}
+              {place.instagram && (
+                <a href={place.instagram} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-pink-600 hover:underline">
+                  <ExternalLink className="w-3.5 h-3.5" /> Instagram
+                </a>
+              )}
+
               {/* Recommended Points */}
               {place.recommendedPoints && place.recommendedPoints.length > 0 && (
                 <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/60">
                   <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-amber-600" />
-                    KTO 제공 정보
+                    추천 포인트
                   </h4>
                   <ul className="space-y-1.5 text-xs text-slate-700">
                     {place.recommendedPoints.map((pt, i) => (
@@ -288,7 +364,7 @@ export default function PlaceDetailModal({
                 <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200/60">
                   <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <ShieldAlert className="w-4 h-4 text-rose-600" />
-                    KTO 동반 시 주의사항
+                    이용 시 주의사항
                   </h4>
                   <ul className="space-y-1.5 text-xs text-rose-950">
                     {place.cautionNotes.map((note, i) => (
@@ -306,7 +382,7 @@ export default function PlaceDetailModal({
 
         {/* Footer info bar */}
         <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 flex-shrink-0">
-          <span>제주 6팀 「댕제주」 · KTO 관광 정보</span>
+          <span>제주 6팀 「댕제주」 · 서비스 및 KTO 관광 정보</span>
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition-colors"

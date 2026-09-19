@@ -90,7 +90,7 @@ export default function PlaceListItem({
       </div>
 
       <div className="hidden md:flex items-center shrink-0">
-        <span className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${place.petInformationStatus === 'KTO_OVERLAY_FOUND' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>{place.petInformationLabel}</span>
+        <span className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${place.petInformationStatus === 'KTO_OVERLAY_FOUND' || place.petInformationStatus === 'ADMIN_CONFIRMED' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>{place.petInformationLabel}</span>
       </div>
 
       {/* 5. Quick Actions: Bookmark & Chevron */}

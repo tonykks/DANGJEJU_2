@@ -10,7 +10,10 @@ import JejuMap from './components/JejuMap';
 import SavedPlacesDrawer from './components/SavedPlacesDrawer';
 import LoadingScreen from './components/LoadingScreen';
 import EventBannerSlider from './components/EventBannerSlider';
+import AdminPlaceEditor from './components/AdminPlaceEditor';
 import { useAuthFavorites } from './hooks/useAuthFavorites';
+import { useAdminAccess } from './hooks/useAdminAccess';
+import { useHashRoute } from './hooks/useHashRoute';
 import {
   Coffee,
   MapPin,
@@ -38,14 +41,23 @@ const CATEGORIES: { id: PlaceCategory; name: string; icon: any }[] = [
 ];
 
 export default function App() {
+  const navigation = useHashRoute();
+  const isAdminRoute = navigation.route === 'admin-places';
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRegion, setSelectedRegion] = useState<RegionId>('all');
   const [selectedCategory, setSelectedCategory] = useState<PlaceCategory>('all');
   const isHome = selectedRegion === 'all' || selectedCategory === 'all';
   const searchReady = selectedRegion !== 'all' && selectedCategory !== 'all';
 
-  const hero = useHeroPlaces(isHome);
-  const search = usePlaceSearch(selectedRegion, selectedCategory);
+  const {
+    user, authLoading, authBusy, notice, dismissNotice, login, logout,
+    savedPlaceIds, toggleSavePlace, favoritesLoading, favoritesError,
+    pendingIds, refreshFavorites,
+  } = useAuthFavorites();
+  const adminAccess = useAdminAccess(user?.uid ?? null);
+
+  const hero = useHeroPlaces(!isAdminRoute && isHome);
+  const search = usePlaceSearch(selectedRegion, selectedCategory, !isAdminRoute);
   const places = isHome ? hero.places : search.places;
   const placesStatus = isHome ? hero.status : (searchReady ? search.status : 'idle');
   const retryPlaces = isHome ? hero.retry : search.retry;
@@ -58,12 +70,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'split' | 'list' | 'map'>('split');
   const [activeBanner, setActiveBanner] = useState<EventBanner | null>(null);
 
-  const {
-    user, authLoading, authBusy, notice, dismissNotice, login, logout,
-    savedPlaceIds, toggleSavePlace, favoritesLoading, favoritesError,
-    pendingIds, refreshFavorites,
-  } = useAuthFavorites();
-  const favorites = useFavoritePlaces(savedPlaceIds, Boolean(user) && isSavedDrawerOpen);
+  const favorites = useFavoritePlaces(savedPlaceIds, !isAdminRoute && Boolean(user) && isSavedDrawerOpen);
   const saveNotice = notice ?? favoritesError ?? (pendingIds.length > 0 ? '찜 변경을 저장하고 있습니다…' : null);
 
   // Home and search share the same array for map + list (no client filter of a full catalog).
@@ -84,6 +91,7 @@ export default function App() {
   };
 
   const handleResetHome = () => {
+    navigation.goHome();
     setSelectedRegion('all');
     setSelectedCategory('all');
     setSelectedPlace(null);
@@ -99,6 +107,7 @@ export default function App() {
   const [isNearMap, setIsNearMap] = useState(false);
 
   useEffect(() => {
+    if (isAdminRoute) return;
     const handleScroll = () => {
       if (!mapSectionRef.current) return;
       const rect = mapSectionRef.current.getBoundingClientRect();
@@ -106,7 +115,12 @@ export default function App() {
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isAdminRoute]);
+
+  useEffect(() => {
+    if (!isAdminRoute || authLoading || adminAccess.status === 'loading') return;
+    if (!user || adminAccess.status === 'signed-out' || adminAccess.status === 'denied') navigation.goHome(true);
+  }, [isAdminRoute, authLoading, adminAccess.status, adminAccess.active, user]);
 
   const handleToggleMobileMap = () => {
     if (isNearMap) {
@@ -115,6 +129,47 @@ export default function App() {
       mapSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   };
+
+  if (isAdminRoute) {
+    return (
+      <div className="min-h-screen bg-[#fbf9f5] text-slate-800 flex flex-col font-sans antialiased">
+        <Header
+          savedCount={savedPlaceIds.length}
+          onOpenSaved={() => {}}
+          onResetHome={handleResetHome}
+          user={user}
+          authLoading={authLoading}
+          authBusy={authBusy}
+          onLogin={login}
+          onLogout={logout}
+          isAdmin={adminAccess.active}
+          onOpenAdmin={navigation.goAdmin}
+          showSaved={false}
+        />
+        {authLoading || adminAccess.status === 'loading' ? (
+          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-12">
+            <div role="status" className="rounded-2xl border border-amber-200 bg-white p-6 text-sm font-bold text-slate-700">관리자 권한을 확인하고 있습니다…</div>
+          </main>
+        ) : adminAccess.status === 'error' ? (
+          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-12">
+            <div role="alert" className="rounded-2xl border border-rose-200 bg-white p-6 text-sm text-slate-700">
+              관리자 권한을 확인하지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.
+              <div className="mt-4 flex gap-2">
+                <button type="button" onClick={adminAccess.retry} className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white">다시 확인</button>
+                <button type="button" onClick={handleResetHome} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">홈으로</button>
+              </div>
+            </div>
+          </main>
+        ) : adminAccess.active && user ? (
+          <AdminPlaceEditor uid={user.uid} onHome={handleResetHome} />
+        ) : (
+          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-12">
+            <div role="alert" className="rounded-2xl border border-rose-200 bg-white p-6 text-sm text-slate-700">관리자 권한이 없어 홈으로 돌아갑니다.</div>
+          </main>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#fbf9f5] text-slate-800 flex flex-col font-sans antialiased selection:bg-amber-100 selection:text-amber-900">
@@ -135,6 +190,8 @@ export default function App() {
         authBusy={authBusy}
         onLogin={login}
         onLogout={logout}
+        isAdmin={adminAccess.active}
+        onOpenAdmin={navigation.goAdmin}
       />
 
       {saveNotice && (
@@ -271,7 +328,7 @@ export default function App() {
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <p className="text-xs sm:text-sm font-bold text-slate-700">
               {isHome ? '추천 장소' : '검색 결과'} <span className="text-amber-600 font-black">{filteredPlaces.length}곳</span>
-              <span className="ml-2 text-slate-500">반려동물 정보 확인 {filteredPlaces.filter((p) => p.petInformationStatus === 'KTO_OVERLAY_FOUND').length}곳</span>
+              <span className="ml-2 text-slate-500">반려동물 정보 확인 {filteredPlaces.filter((p) => p.petInformationStatus === 'KTO_OVERLAY_FOUND' || p.petInformationStatus === 'ADMIN_CONFIRMED').length}곳</span>
             </p>
           </div>
 

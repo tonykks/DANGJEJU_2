@@ -83,7 +83,7 @@ export default function JejuMap({ places, selectedPlace, onSelectPlace, onOpenDe
 
     mappedPlaces.forEach((place) => {
       const isSelected = selectedPlace?.id === place.id;
-      const known = place.petInformationStatus === 'KTO_OVERLAY_FOUND';
+      const known = place.petInformationStatus === 'KTO_OVERLAY_FOUND' || place.petInformationStatus === 'ADMIN_CONFIRMED';
       const color = known ? (CATEGORY_COLORS[place.category] || '#64748b') : '#94a3b8';
       const border = isSelected ? '#fbbf24' : (known ? '#ffffff' : '#cbd5e1');
 

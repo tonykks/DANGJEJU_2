@@ -1,4 +1,6 @@
 import unittest
+import json
+from pathlib import Path
 from tools.firestore_place_search_fields.derive import derive_search, pet_sort_key, pet_tier
 
 
@@ -57,6 +59,20 @@ class DeriveTests(unittest.TestCase):
         rich = pet_sort_key("RICH", 5, 5)
         self.assertLess(search["petSortKey"], rich)
 
+    def test_pet_status_source_consistency(self):
+        with self.assertRaisesRegex(ValueError, "pet status mismatch"):
+            derive_search(place_base(petPolicy={"petInformationStatus": "UNKNOWN"}), source_base())
+        source = source_base(collector={"hasPetJoin": "N"})
+        source["kto"] = {**source["kto"], "pet": None}
+        with self.assertRaisesRegex(ValueError, "pet status mismatch"):
+            derive_search(place_base(petPolicy={"petInformationStatus": "KTO_OVERLAY_FOUND"}), source)
+        result = derive_search(place_base(petPolicy={"petInformationStatus": "ADMIN_CONFIRMED"}), source)
+        self.assertEqual(result["petTier"], "BASIC")
+        missing_pet = source_base(collector={"hasPetJoin": "N"})
+        missing_pet["kto"] = {key: value for key, value in missing_pet["kto"].items() if key != "pet"}
+        result = derive_search(place_base(petPolicy={"petInformationStatus": "UNKNOWN"}), missing_pet)
+        self.assertEqual(result["petTier"], "UNKNOWN")
+
     def test_shopping_not_cafe_by_title(self):
         source = source_base()
         source["kto"] = {**source["kto"], "contentTypeId": "38", "contentTypeName": "쇼핑", "cat3": "", "title": "바다카페샵"}
@@ -74,6 +90,15 @@ class DeriveTests(unittest.TestCase):
         self.assertEqual(pet_tier("KTO_OVERLAY_FOUND", 4), "PARTIAL")
         self.assertEqual(pet_tier("KTO_OVERLAY_FOUND", 1), "BASIC")
         self.assertEqual(pet_tier("UNKNOWN", 9), "UNKNOWN")
+
+    def test_admin_effective_input_fixture(self):
+        fixture_path = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "searchDerivation.json"
+        fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+        search = derive_search(fixture["place"], fixture["source"])
+        self.assertEqual(search["region"], "EAST")
+        self.assertEqual(search["category"], "SHOPPING")
+        self.assertEqual(search["petScore"], 8)
+        self.assertEqual(len(search["inputHash"]), 64)
 
 
 if __name__ == "__main__":

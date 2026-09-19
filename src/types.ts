@@ -43,28 +43,39 @@ export type DogSizeLimit = 'all' | 'small' | 'medium' | 'large'; // all sizes, u
 
 export type SpacePolicy = 'all' | 'indoor' | 'indoor_carrier' | 'outdoor_only';
 
+export type TriState = 'TRUE' | 'FALSE' | 'UNKNOWN';
+export type PetInformationStatus = 'KTO_OVERLAY_FOUND' | 'ADMIN_CONFIRMED' | 'UNKNOWN';
+
 export interface PetPolicy {
-  allowedSizes: ('small' | 'medium' | 'large')[];
-  sizeDescription: string; // e.g. "대형견(25kg)까지 전견종 가능" or "10kg 미만 소형견만 가능"
-  spacePolicy: 'unknown' | 'indoor_free' | 'indoor_carrier' | 'outdoor_terrace_only' | 'outdoor_and_indoor';
-  spaceDescription: string; // e.g. "실내 1층 목줄 착용 시 동반 가능, 2층은 노펫존"
-  leashRequired: boolean;
-  leashDescription: string; // e.g. "리드줄(2m 이내) 필수 착용"
-  offLeashZoneAvailable: boolean; // 천연잔디 오프리쉬 운동장 유무
-  petFee: number | null; // 0 = free, or e.g. 5000 won
-  petFeeDescription?: string;
-  indoorAllowed: boolean;
-  outdoorAllowed: boolean;
+  petInformationStatus: PetInformationStatus;
+  petAcceptance: TriState;
+  smallDogAllowed: TriState;
+  mediumDogAllowed: TriState;
+  largeDogAllowed: TriState;
+  indoorAllowed: TriState;
+  outdoorAllowed: TriState;
+  carrierRequired: TriState;
+  leashRequired: TriState;
+  offLeashZoneAvailable: TriState;
+  allowedBreeds: string[];
+  allowedSizes: string[];
+  sizeDescription: string;
+  spacePolicy: string;
+  spaceDescription: string;
+  leashDescription: string;
+  petFee: number | null;
+  petFeeDescription: string;
+  otherPetPolicy: string;
 }
 
 export interface PlaceAmenities {
-  freeParking: boolean;
+  freeParking: TriState;
   parkingDescription: string;
-  dogMenu: boolean; // 멍푸치노, 수제간식
-  waterBowlProvided: boolean; // 물그릇 제공
-  wasteBagsProvided: boolean; // 배변봉투 비치
-  fencedYard: boolean; // 펜스 운동장
-  photoZone: boolean; // 반려견 포토존
+  dogMenu: TriState; // 멍푸치노, 수제간식
+  waterBowlProvided: TriState; // 물그릇 제공
+  wasteBagsProvided: TriState; // 배변봉투 비치
+  fencedYard: TriState; // 펜스 운동장
+  photoZone: TriState; // 반려견 포토존
 }
 
 export interface Place {
@@ -92,10 +103,10 @@ export interface Place {
   recommendedPoints: string[];
   imageUrl: string;
   tags: string[];
-  petInformationStatus?: 'KTO_OVERLAY_FOUND' | 'UNKNOWN';
+  petInformationStatus?: PetInformationStatus;
   petInformationLabel?: string;
   petInformationNotice?: string;
-  petDetails?: { key: string; label: string; value: string }[];
+  petDetails?: { key: string; label: string; value: string; source: 'ADMIN' | 'KTO' }[];
   imageFallbackUrls?: string[];
   petTier?: 'RICH' | 'PARTIAL' | 'BASIC' | 'UNKNOWN';
   totalScore?: number;

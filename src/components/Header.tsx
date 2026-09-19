@@ -1,4 +1,4 @@
-import { Dog, Heart, Sparkles, RefreshCw } from 'lucide-react';
+import { Dog, Heart, RefreshCw, Settings } from 'lucide-react';
 import type { User } from 'firebase/auth';
 
 interface HeaderProps {
@@ -11,6 +11,9 @@ interface HeaderProps {
   authBusy: boolean;
   onLogin: () => void;
   onLogout: () => void;
+  isAdmin?: boolean;
+  onOpenAdmin?: () => void;
+  showSaved?: boolean;
 }
 
 export default function Header({
@@ -23,6 +26,9 @@ export default function Header({
   authBusy,
   onLogin,
   onLogout,
+  isAdmin = false,
+  onOpenAdmin,
+  showSaved = true,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-amber-100 shadow-xs">
@@ -64,7 +70,7 @@ export default function Header({
             </button>
           )}
 
-          <button
+          {showSaved && <button
             id="saved-places-header-btn"
             aria-label={`찜한 장소 ${savedCount}개 열기`}
             onClick={onOpenSaved}
@@ -81,7 +87,18 @@ export default function Header({
                 {savedCount}
               </span>
             )}
-          </button>
+          </button>}
+
+          {isAdmin && onOpenAdmin && (
+            <button
+              id="admin-places-header-btn"
+              onClick={onOpenAdmin}
+              className="flex items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-black text-amber-800 hover:bg-amber-100"
+            >
+              <Settings className="h-4 w-4" />
+              <span>관리</span>
+            </button>
+          )}
 
           {user ? (
             <div className="flex items-center gap-1.5 text-xs">

@@ -5,6 +5,289 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
+    function isActiveAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin'
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true;
+    }
+
+    function triState(value) {
+      return value is string && value in ['TRUE', 'FALSE', 'UNKNOWN'];
+    }
+
+    function optionalText(data, key, maxLength) {
+      return !(key in data) || data[key] == null || (data[key] is string && data[key].size() <= maxLength);
+    }
+
+    function optionalList(data, key, maxSize) {
+      return !(key in data) || data[key] == null || (data[key] is list && data[key].size() <= maxSize);
+    }
+
+    function optionalHttpUrl(data, key) {
+      return !(key in data) || data[key] == null || data[key] == ''
+        || (data[key] is string && data[key].size() <= 500 && data[key].matches('^https?://.+$'));
+    }
+
+    function optionalInstagramUrl(data, key) {
+      return !(key in data) || data[key] == null || data[key] == ''
+        || (data[key] is string && data[key].size() <= 500
+          && data[key].matches('^https?://([A-Za-z0-9-]+\\.)*instagram\\.com([/:?#].*)?$'));
+    }
+
+    function validPetPolicy(data) {
+      return data.petPolicy is map
+        && data.petPolicy.keys().hasOnly([
+          'petInformationStatus', 'petAcceptance', 'smallDogAllowed', 'mediumDogAllowed',
+          'largeDogAllowed', 'indoorAllowed', 'outdoorAllowed', 'carrierRequired',
+          'leashRequired', 'offLeashZoneAvailable', 'allowedBreeds', 'allowedSizes',
+          'sizeDescription', 'spacePolicy', 'spaceDescription', 'leashDescription',
+          'petFee', 'petFeeDescription', 'otherPetPolicy'
+        ])
+        && data.petPolicy.keys().hasAll([
+          'petInformationStatus', 'petAcceptance', 'smallDogAllowed', 'mediumDogAllowed',
+          'largeDogAllowed', 'indoorAllowed', 'outdoorAllowed', 'carrierRequired',
+          'leashRequired', 'offLeashZoneAvailable', 'allowedBreeds', 'allowedSizes',
+          'sizeDescription', 'spacePolicy', 'spaceDescription', 'leashDescription',
+          'petFee', 'petFeeDescription', 'otherPetPolicy'
+        ])
+        && data.petPolicy.petInformationStatus in ['KTO_OVERLAY_FOUND', 'ADMIN_CONFIRMED', 'UNKNOWN']
+        && (!('petAcceptance' in data.petPolicy) || triState(data.petPolicy.petAcceptance))
+        && (!('smallDogAllowed' in data.petPolicy) || triState(data.petPolicy.smallDogAllowed))
+        && (!('mediumDogAllowed' in data.petPolicy) || triState(data.petPolicy.mediumDogAllowed))
+        && (!('largeDogAllowed' in data.petPolicy) || triState(data.petPolicy.largeDogAllowed))
+        && (!('indoorAllowed' in data.petPolicy) || triState(data.petPolicy.indoorAllowed))
+        && (!('outdoorAllowed' in data.petPolicy) || triState(data.petPolicy.outdoorAllowed))
+        && (!('carrierRequired' in data.petPolicy) || triState(data.petPolicy.carrierRequired))
+        && (!('leashRequired' in data.petPolicy) || triState(data.petPolicy.leashRequired))
+        && (!('offLeashZoneAvailable' in data.petPolicy) || triState(data.petPolicy.offLeashZoneAvailable))
+        && optionalList(data.petPolicy, 'allowedBreeds', 30)
+        && optionalList(data.petPolicy, 'allowedSizes', 30)
+        && optionalText(data.petPolicy, 'sizeDescription', 4000)
+        && optionalText(data.petPolicy, 'spacePolicy', 500)
+        && optionalText(data.petPolicy, 'spaceDescription', 4000)
+        && optionalText(data.petPolicy, 'leashDescription', 4000)
+        && (!('petFee' in data.petPolicy) || data.petPolicy.petFee == null
+          || (data.petPolicy.petFee is int && data.petPolicy.petFee >= 0 && data.petPolicy.petFee <= 1000000))
+        && optionalText(data.petPolicy, 'petFeeDescription', 4000)
+        && optionalText(data.petPolicy, 'otherPetPolicy', 4000);
+    }
+
+    function validAmenities(data) {
+      return data.amenities is map
+        && data.amenities.keys().hasOnly([
+          'freeParking', 'dogMenu', 'waterBowlProvided', 'wasteBagsProvided',
+          'fencedYard', 'photoZone', 'parkingDescription'
+        ])
+        && data.amenities.keys().hasAll([
+          'freeParking', 'dogMenu', 'waterBowlProvided', 'wasteBagsProvided',
+          'fencedYard', 'photoZone', 'parkingDescription'
+        ])
+        && (!('freeParking' in data.amenities) || triState(data.amenities.freeParking))
+        && (!('dogMenu' in data.amenities) || triState(data.amenities.dogMenu))
+        && (!('waterBowlProvided' in data.amenities) || triState(data.amenities.waterBowlProvided))
+        && (!('wasteBagsProvided' in data.amenities) || triState(data.amenities.wasteBagsProvided))
+        && (!('fencedYard' in data.amenities) || triState(data.amenities.fencedYard))
+        && (!('photoZone' in data.amenities) || triState(data.amenities.photoZone))
+        && optionalText(data.amenities, 'parkingDescription', 4000);
+    }
+
+    function validAdminOverrides(data) {
+      return !('adminOverrides' in data) || (
+        data.adminOverrides is map
+        && data.adminOverrides.keys().hasOnly(['petDetails'])
+        && (!('petDetails' in data.adminOverrides) || (
+          data.adminOverrides.petDetails is map
+          && data.adminOverrides.petDetails.keys().hasOnly([
+            'acmpyTypeCd', 'acmpyNeedMtr', 'acmpyPsblCpam', 'etcAcmpyInfo',
+            'relaAcdntRiskMtr', 'relaFrnshPrdlst', 'relaPosesFclty',
+            'relaPurcPrdlst', 'relaRntlPrdlst'
+          ])
+          && optionalText(data.adminOverrides.petDetails, 'acmpyTypeCd', 4000)
+          && optionalText(data.adminOverrides.petDetails, 'acmpyNeedMtr', 4000)
+          && optionalText(data.adminOverrides.petDetails, 'acmpyPsblCpam', 4000)
+          && optionalText(data.adminOverrides.petDetails, 'etcAcmpyInfo', 4000)
+          && optionalText(data.adminOverrides.petDetails, 'relaAcdntRiskMtr', 4000)
+          && optionalText(data.adminOverrides.petDetails, 'relaFrnshPrdlst', 4000)
+          && optionalText(data.adminOverrides.petDetails, 'relaPosesFclty', 4000)
+          && optionalText(data.adminOverrides.petDetails, 'relaPurcPrdlst', 4000)
+          && optionalText(data.adminOverrides.petDetails, 'relaRntlPrdlst', 4000)
+        ))
+      );
+    }
+
+    function editableFieldNames() {
+      return [
+        'name', 'serviceCategory', 'regionArea', 'address', 'roadAddress', 'latitude', 'longitude',
+        'phone', 'primaryImageUrl', 'secondaryImageUrl', 'shortDescription', 'fullDescription',
+        'parkingInfo', 'businessHours', 'closedDays', 'instagramUrl', 'tags',
+        'recommendedPoints', 'cautionNotes',
+        'petPolicy.petInformationStatus', 'petPolicy.petAcceptance', 'petPolicy.smallDogAllowed',
+        'petPolicy.mediumDogAllowed', 'petPolicy.largeDogAllowed', 'petPolicy.indoorAllowed',
+        'petPolicy.outdoorAllowed', 'petPolicy.carrierRequired', 'petPolicy.leashRequired',
+        'petPolicy.offLeashZoneAvailable', 'petPolicy.allowedBreeds', 'petPolicy.allowedSizes',
+        'petPolicy.sizeDescription', 'petPolicy.spacePolicy', 'petPolicy.spaceDescription',
+        'petPolicy.leashDescription', 'petPolicy.petFee', 'petPolicy.petFeeDescription',
+        'petPolicy.otherPetPolicy',
+        'petDetails.acmpyTypeCd', 'petDetails.acmpyNeedMtr', 'petDetails.acmpyPsblCpam',
+        'petDetails.etcAcmpyInfo', 'petDetails.relaAcdntRiskMtr', 'petDetails.relaFrnshPrdlst',
+        'petDetails.relaPosesFclty', 'petDetails.relaPurcPrdlst', 'petDetails.relaRntlPrdlst',
+        'amenities.freeParking', 'amenities.dogMenu', 'amenities.waterBowlProvided',
+        'amenities.wasteBagsProvided', 'amenities.fencedYard', 'amenities.photoZone',
+        'amenities.parkingDescription'
+      ];
+    }
+
+    function petPolicyFactKeys() {
+      return [
+        'petAcceptance', 'smallDogAllowed', 'mediumDogAllowed', 'largeDogAllowed',
+        'indoorAllowed', 'outdoorAllowed', 'carrierRequired', 'leashRequired',
+        'offLeashZoneAvailable', 'allowedBreeds', 'allowedSizes', 'sizeDescription',
+        'spacePolicy', 'spaceDescription', 'leashDescription', 'petFee',
+        'petFeeDescription', 'otherPetPolicy'
+      ];
+    }
+
+    function displayTopLevelNames() {
+      return [
+        'name', 'serviceCategory', 'regionArea', 'address', 'roadAddress', 'latitude', 'longitude',
+        'phone', 'primaryImageUrl', 'secondaryImageUrl', 'shortDescription', 'fullDescription',
+        'parkingInfo', 'businessHours', 'closedDays', 'instagramUrl', 'tags', 'petPolicy',
+        'amenities', 'recommendedPoints', 'cautionNotes', 'adminOverrides'
+      ];
+    }
+
+    function clearableRootFieldNames() {
+      return [
+        'address', 'roadAddress', 'latitude', 'longitude', 'phone', 'primaryImageUrl',
+        'secondaryImageUrl', 'shortDescription', 'fullDescription', 'parkingInfo',
+        'businessHours', 'closedDays', 'instagramUrl', 'tags', 'recommendedPoints', 'cautionNotes'
+      ];
+    }
+
+    function validClearedValues(data) {
+      let cleared = data.manualAdmin.clearedFields.toSet();
+      return (!cleared.hasAny(['address']) || data.address == '')
+        && (!cleared.hasAny(['roadAddress']) || data.roadAddress == '')
+        && (!cleared.hasAny(['latitude']) || data.latitude == null)
+        && (!cleared.hasAny(['longitude']) || data.longitude == null)
+        && (!cleared.hasAny(['phone']) || data.phone == '')
+        && (!cleared.hasAny(['primaryImageUrl']) || data.primaryImageUrl == '')
+        && (!cleared.hasAny(['secondaryImageUrl']) || data.secondaryImageUrl == '')
+        && (!cleared.hasAny(['shortDescription']) || data.shortDescription == '')
+        && (!cleared.hasAny(['fullDescription']) || data.fullDescription == '')
+        && (!cleared.hasAny(['parkingInfo']) || data.parkingInfo == '')
+        && (!cleared.hasAny(['businessHours']) || data.businessHours == '')
+        && (!cleared.hasAny(['closedDays']) || data.closedDays == '')
+        && (!cleared.hasAny(['instagramUrl']) || data.instagramUrl == '')
+        && (!cleared.hasAny(['tags']) || data.tags.size() == 0)
+        && (!cleared.hasAny(['recommendedPoints']) || data.recommendedPoints.size() == 0)
+        && (!cleared.hasAny(['cautionNotes']) || data.cautionNotes.size() == 0);
+    }
+
+    function validPetProvenance(data, oldData, affected) {
+      let policyAffected = data.petPolicy.diff(oldData.petPolicy).affectedKeys();
+      let factsChanged = policyAffected.hasAny(petPolicyFactKeys()) || affected.hasAny(['adminOverrides']);
+      let statusChanged = data.petPolicy.petInformationStatus != oldData.petPolicy.petInformationStatus;
+      return (factsChanged && data.petPolicy.petInformationStatus == 'ADMIN_CONFIRMED')
+        || (!factsChanged && !statusChanged);
+    }
+
+    function validManualAdmin(data, oldData, affected) {
+      return data.manualAdmin is map
+        && data.manualAdmin.keys().hasAll(['source', 'updatedAt', 'changedFields', 'changedTopLevel', 'clearedFields', 'managedFields'])
+        && data.manualAdmin.keys().hasOnly(['source', 'updatedAt', 'changedFields', 'changedTopLevel', 'clearedFields', 'managedFields'])
+        && data.manualAdmin.source == 'ADMIN_UI'
+        && data.manualAdmin.updatedAt is timestamp
+        && data.manualAdmin.updatedAt == request.time
+        && data.manualAdmin.changedFields is list
+        && data.manualAdmin.changedFields.size() > 0
+        && data.manualAdmin.changedFields.size() <= 60
+        && data.manualAdmin.changedFields.toSet().hasOnly(editableFieldNames())
+        && data.manualAdmin.changedTopLevel is list
+        && data.manualAdmin.changedTopLevel.size() > 0
+        && data.manualAdmin.changedTopLevel.size() == data.manualAdmin.changedTopLevel.toSet().size()
+        && data.manualAdmin.changedTopLevel.toSet().hasOnly(displayTopLevelNames())
+        && data.manualAdmin.changedTopLevel.toSet()
+          == affected.difference(['manualAdmin', 'search', 'updatedAt', 'coordinateQualityStatus'].toSet())
+        && data.manualAdmin.clearedFields is list
+        && data.manualAdmin.clearedFields.size() <= 60
+        && data.manualAdmin.clearedFields.toSet().hasOnly(clearableRootFieldNames())
+        && validClearedValues(data)
+        && data.manualAdmin.managedFields is list
+        && data.manualAdmin.managedFields.size() <= 60
+        && data.manualAdmin.managedFields.toSet().hasOnly(editableFieldNames())
+        && data.manualAdmin.managedFields.toSet().hasAll(data.manualAdmin.changedFields)
+        && (!('manualAdmin' in oldData) || !('managedFields' in oldData.manualAdmin)
+          || data.manualAdmin.managedFields.toSet().hasAll(oldData.manualAdmin.managedFields));
+    }
+
+    function validSearch(data, oldData) {
+      return data.search is map
+        && data.search.keys().hasAll([
+          'version', 'region', 'category', 'regionBasis', 'categoryBasis', 'basicScore',
+          'petScore', 'totalScore', 'scoreVersion', 'petTier', 'petSortKey',
+          'primarySourceId', 'inputHash', 'derivedAt'
+        ])
+        && data.search.keys().hasOnly([
+          'version', 'region', 'category', 'regionBasis', 'categoryBasis', 'basicScore',
+          'petScore', 'totalScore', 'scoreVersion', 'petTier', 'petSortKey',
+          'primarySourceId', 'inputHash', 'derivedAt'
+        ])
+        && data.search.version == 1
+        && data.search.scoreVersion == 'hank-place-field-audit-v1'
+        && data.search.region in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN']
+        && data.search.category in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT', 'UNKNOWN']
+        && data.search.regionBasis in ['SERVICE_REGION', 'ADDRESS_EAST', 'ADDRESS_WEST', 'MUNICIPALITY', 'UNKNOWN']
+        && data.search.categoryBasis in ['SERVICE_CATEGORY', 'KTO_CONTENT_TYPE', 'KTO_CAT3', 'TITLE_FALLBACK', 'UNKNOWN']
+        && data.search.basicScore is int && data.search.basicScore >= 0 && data.search.basicScore <= 15
+        && data.search.petScore is int && data.search.petScore >= 0 && data.search.petScore <= 9
+        && data.search.totalScore is int
+        && data.search.totalScore == data.search.basicScore + data.search.petScore
+        && data.search.petTier in ['RICH', 'PARTIAL', 'BASIC', 'UNKNOWN']
+        && ((data.search.petTier == 'RICH' && data.search.petScore >= 5 && data.search.petSortKey == 30000 + data.search.petScore * 100 + data.search.basicScore)
+          || (data.search.petTier == 'PARTIAL' && data.search.petScore >= 2 && data.search.petScore <= 4 && data.search.petSortKey == 20000 + data.search.petScore * 100 + data.search.basicScore)
+          || (data.search.petTier == 'BASIC' && data.search.petScore <= 1 && data.search.petSortKey == 10000 + data.search.petScore * 100 + data.search.basicScore)
+          || (data.search.petTier == 'UNKNOWN' && data.search.petScore == 0 && data.search.petSortKey == data.search.basicScore))
+        && data.search.primarySourceId is string
+        && data.search.primarySourceId == oldData.search.primarySourceId
+        && data.search.inputHash is string
+        && data.search.inputHash.matches('^[a-f0-9]{64}$')
+        && data.search.derivedAt is timestamp
+        && data.search.derivedAt == request.time
+        && (!('serviceCategory' in data) || !(data.serviceCategory is string) || data.search.category == data.serviceCategory)
+        && (!('regionArea' in data) || !(data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST']) || data.search.region == data.regionArea);
+    }
+
+    function validPlaceDisplay(data, affected) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && (!('serviceCategory' in data) || data.serviceCategory == null || (data.serviceCategory is string && data.serviceCategory in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT']))
+        && (!('regionArea' in data) || data.regionArea == null || (data.regionArea is string && data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN']))
+        && (!affected.hasAny(['serviceCategory']) || (data.serviceCategory is string && data.serviceCategory in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT']))
+        && (!affected.hasAny(['regionArea']) || (data.regionArea is string && data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN']))
+        && optionalText(data, 'address', 500) && optionalText(data, 'roadAddress', 500)
+        && optionalText(data, 'phone', 30) && optionalHttpUrl(data, 'primaryImageUrl')
+        && optionalHttpUrl(data, 'secondaryImageUrl') && optionalText(data, 'shortDescription', 500)
+        && optionalText(data, 'fullDescription', 4000) && optionalText(data, 'parkingInfo', 4000)
+        && optionalText(data, 'businessHours', 4000) && optionalText(data, 'closedDays', 500)
+        && optionalInstagramUrl(data, 'instagramUrl')
+        && optionalList(data, 'tags', 30) && optionalList(data, 'recommendedPoints', 30)
+        && optionalList(data, 'cautionNotes', 30)
+        && (!affected.hasAny(['latitude', 'longitude', 'coordinateQualityStatus']) || (
+          (data.latitude == null || (data.latitude is number && data.latitude >= 32.5 && data.latitude <= 34.2))
+          && (data.longitude == null || (data.longitude is number && data.longitude >= 125.5 && data.longitude <= 127.2))
+          && data.coordinateQualityStatus == 'ADMIN_CONFIRMED'
+        ))
+        && validPetPolicy(data)
+        && validAmenities(data)
+        && validAdminOverrides(data);
+    }
+
+    match /admins/{uid} {
+      allow get: if isOwner(uid);
+      allow list, create, update, delete: if false;
+    }
+
     match /users/{uid}/favorites/{placeId} {
       allow read, delete: if isOwner(uid);
       allow create, update: if isOwner(uid)
@@ -18,24 +301,47 @@ service cloud.firestore {
 
     match /places/{placeId} {
       allow read: if true;
-      allow write: if false;
+      allow create, delete: if false;
+      allow update: if isActiveAdmin()
+        && resource.data.placeId == placeId
+        && request.resource.data.placeId == placeId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'serviceCategory', 'regionArea', 'address', 'roadAddress', 'latitude', 'longitude',
+          'coordinateQualityStatus', 'phone', 'primaryImageUrl', 'secondaryImageUrl',
+          'shortDescription', 'fullDescription', 'parkingInfo', 'businessHours', 'closedDays',
+          'instagramUrl', 'tags', 'petPolicy', 'amenities', 'recommendedPoints', 'cautionNotes',
+          'adminOverrides', 'manualAdmin', 'search', 'updatedAt'
+        ])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAll(['manualAdmin', 'search', 'updatedAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'name', 'serviceCategory', 'regionArea', 'address', 'roadAddress', 'latitude', 'longitude',
+          'phone', 'primaryImageUrl', 'secondaryImageUrl', 'shortDescription', 'fullDescription',
+          'parkingInfo', 'businessHours', 'closedDays', 'instagramUrl', 'tags', 'petPolicy',
+          'amenities', 'recommendedPoints', 'cautionNotes', 'adminOverrides'
+        ])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['coordinateQualityStatus'])
+          || request.resource.data.diff(resource.data).affectedKeys().hasAny(['latitude', 'longitude']))
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.updatedAt == request.time
+        && validManualAdmin(request.resource.data, resource.data, request.resource.data.diff(resource.data).affectedKeys())
+        && validPetProvenance(request.resource.data, resource.data, request.resource.data.diff(resource.data).affectedKeys())
+        && validPlaceDisplay(request.resource.data, request.resource.data.diff(resource.data).affectedKeys())
+        && validSearch(request.resource.data, resource.data);
 
-      // Preserve the existing public reads of canonical catalog provenance.
       match /sources/{sourceId} {
         allow read: if true;
         allow write: if false;
       }
     }
 
-    // Collection-group reads for catalog join. Client queries MUST constrain
-    // source == 'KTO' and placeId to values matching this regex (rules ≠ filters).
+    // Rules can validate search shape/arithmetic and a SHA-256-shaped value, but
+    // cannot recompute SHA-256 from document inputs. Parity is enforced in tests.
     match /{path=**}/sources/{sourceId} {
       allow read: if resource.data.source == 'KTO'
         && resource.data.placeId.matches('^kto-[0-9]+$');
       allow write: if false;
     }
 
-    // Includes user profile documents and any unimplemented collections.
     match /{document=**} {
       allow read, write: if false;
     }

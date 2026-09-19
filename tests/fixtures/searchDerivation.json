@@ -1,0 +1,71 @@
+{
+  "place": {
+    "placeId": "kto-7001",
+    "name": "관리자 보완 장소",
+    "address": "제주특별자치도 제주시 연동",
+    "roadAddress": "제주특별자치도 제주시 구좌읍 테스트로 1",
+    "municipality": "JEJU_CITY",
+    "regionArea": "EAST",
+    "latitude": 33.45,
+    "longitude": 126.55,
+    "coordinateQualityStatus": "ADMIN_CONFIRMED",
+    "phone": "064-111-2222",
+    "primaryImageUrl": "https://example.com/admin.jpg",
+    "secondaryImageUrl": null,
+    "shortDescription": "관리자가 확인한 소개",
+    "fullDescription": "관리자가 확인한 상세 소개입니다.",
+    "parkingInfo": "전용 주차장",
+    "businessHours": "09:00-18:00",
+    "closedDays": "화요일",
+    "instagramUrl": "https://www.instagram.com/example",
+    "tags": ["반려견", "동부"],
+    "serviceCategory": "SHOPPING",
+    "petPolicy": {
+      "petInformationStatus": "ADMIN_CONFIRMED",
+      "petAcceptance": "TRUE"
+    },
+    "adminOverrides": {
+      "petDetails": {
+        "acmpyNeedMtr": "관리자 확인 목줄 필수",
+        "relaFrnshPrdlst": ""
+      }
+    },
+    "manualAdmin": {
+      "clearedFields": ["phone"]
+    }
+  },
+  "source": {
+    "id": "kto-areaBasedList2-7001",
+    "placeSourceId": "kto-areaBasedList2-7001",
+    "placeId": "kto-7001",
+    "source": "KTO",
+    "collector": { "hasPetJoin": "Y" },
+    "kto": {
+      "title": "원본 장소",
+      "addr1": "제주특별자치도 제주시 연동",
+      "addr2": "101호",
+      "contentTypeId": "39",
+      "contentTypeName": "음식점",
+      "cat3": "A05020900",
+      "tel": "064-999-9999",
+      "firstImage": "https://example.com/kto.jpg",
+      "firstImage2": "",
+      "zipcode": "63000",
+      "mapx": 126.55,
+      "mapy": 33.45,
+      "createdTime": "2010-05-03T10:42:30Z",
+      "modifiedTime": "2024-01-02T03:04:05Z",
+      "pet": {
+        "acmpyTypeCd": "부분 동반",
+        "acmpyNeedMtr": "원본 목줄",
+        "acmpyPsblCpam": "소형견",
+        "etcAcmpyInfo": "원본 안내",
+        "relaAcdntRiskMtr": "계단 주의",
+        "relaFrnshPrdlst": "물그릇",
+        "relaPosesFclty": "야외 공간",
+        "relaPurcPrdlst": "간식",
+        "relaRntlPrdlst": "이동장"
+      }
+    }
+  }
+}
