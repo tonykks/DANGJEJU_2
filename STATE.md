@@ -9,8 +9,8 @@
 - **요구사항 기준:** 루트 `requirement.md`
 - **현재 단계:** admin-place-editor-v1 코드는 그대로 유지. 후속 Firestore Rules Emulator 동적 검증을 agy에 맡겨 시도했으나 이 호스트에 Java가 없어 `BLOCKED_ENVIRONMENT`; 실제 Emulator test는 미실행이다.
 - **현재 담당 / LAST_UPDATED_BY:** Hank, 2026-09-19
-- **다음 담당 / 다음 행동:** Owner가 2026-09-19 로컬 Java 21 JDK 설치를 승인했다. Hank가 이 PC에 Java 21을 설치·PATH 확인한 뒤 아래 demo-project 전용 명령으로 Rules Emulator 동적 테스트를 실행하고, PASS/FAIL을 기록한다. 실제 Rules 실패가 확인되기 전에는 정상 코드를 수정하지 않는다.
-- **Blocker:** 현재 `java` command/PATH 없음. 설치된 Firebase CLI는 15.28.1이며 CLI v15 Emulator 실행에는 Java 21 이상이 필요하다. **로컬 Java 21 설치는 이제 승인됨**. 단, Firebase live deploy·운영 DB 변경·Billing/Storage 변경은 여전히 금지한다.
+- **다음 담당 / 다음 행동:** Owner가 2026-09-19 **이번 V1을 중간 승인 없이 끝까지 완료하도록 명시 승인**했다. Hank는 Java 21 설치 → Emulator Rules 동적검증 → 필요 시 최소 수정·재시험 → Firestore Rules live deploy → 현재 Owner 계정의 정확한 Firebase Auth UID 확인 → `admins/{uid}` 관리자 문서 1회 생성 → 관리자 live E2E → STATE 갱신·commit/push까지 자율적으로 완료한다.
+- **Blocker:** 현재 `java` command/PATH 없음은 작업 blocker가 아니라 설치 후 해소할 개발환경 항목이다. 설치된 Firebase CLI는 15.28.1이며 CLI v15 Emulator 실행에는 Java 21 이상이 필요하다. **Java 21 설치, Rules live deploy, Owner 관리자 등록, 검증용 운영 DB의 최소·가역적 E2E write까지 이번 V1 범위에서 승인됨.** 새 Billing/Storage 활성화, 새 계정/credential 요구, PR/main merge는 여전히 승인 범위 밖이다.
 - **Hosting (기존 운영, 미배포):** https://dangjeju.web.app
 - **Pages (feature preview):** https://tonykks.github.io/DANGJEJU_2/ — feature push가 GitHub Pages workflow를 자동 실행한다.
 
@@ -49,24 +49,26 @@
 - Emulator 실제 실패가 없으므로 `firestore.rules`, test, app code는 이번 후속 단계에서 변경하지 않았다.
 - live Rules/admin이 의도적으로 미적용이므로 관리자 실제 로그인·write browser E2E는 아직 수행하지 않았다.
 
-## 승인 경계 / 아직 하지 않은 것
+## 승인 경계 / 현재 Owner 승인
 
-- Firestore Rules live deploy 안 함.
-- 초기 `admins/{uid}` 문서 생성·변경 안 함.
-- Firebase Hosting 재배포 안 함.
-- Firebase Storage/Billing 활성화 및 파일 업로드 안 함.
-- 운영 Place/Source/favorites 데이터 읽기·쓰기 안 함.
-- PR 생성·main merge 안 함.
-- 기존 untracked `NUL`, `tools/kto_data_probe/`는 보존했고 이번 commit 대상이 아니다.
+- **이번 V1에서 승인됨:** 로컬 Java 21 설치, Firestore Emulator 동적검증, 검증 통과 후 `dangjeju` Firestore Rules live deploy, 현재 Owner 계정의 정확한 Firebase Auth UID 확인 및 `admins/{uid}` 문서 1회 생성, 관리자 기능 live E2E, 검증을 위한 최소·가역적 Place update 후 원상복원(필요 시).
+- 관리자 UID는 현재 Owner의 실제 인증 계정에서 **결정적으로 확인**해야 하며 favorites 경로나 추측으로 고르지 않는다.
+- 정상 코드는 실제 테스트 실패가 확인된 경우에만 최소 수정한다.
+- **여전히 승인 범위 밖:** Firebase Storage/Billing 신규 활성화, 새 계정/credential 생성·요구, PR 생성, main merge, 범위를 바꾸는 기능 추가.
+- Firebase Hosting 재배포는 관리자 E2E에 꼭 필요한 코드 변경이 실제 발생한 경우에만 기존 절차로 수행한다. 불필요하면 재배포하지 않는다.
+- 기존 untracked `NUL`, `tools/kto_data_probe/`는 보존하고 이번 commit 대상에서 제외한다.
 
-## 다음 승인 순서
+## 남은 실행 순서 — 중간 승인 없이 완료
 
-1. 이 PC에 Java 21 JDK를 설치하고 PATH/`java -version`을 확인한 뒤, 위 demo-project Emulator 명령을 실행해 6개 Rules 목표를 동적으로 증명한다.
-2. Toby/Owner가 변경 코드와 Rules를 검토하고 Rules live deploy 여부를 승인한다.
-3. 승인된 안전한 1회 절차로 실제 담당자 UID의 `admins/{uid}` 문서를 생성한다.
-4. 관리자 로그인/직접 URL 거부/Place update/Source write 거부를 Firebase Hosting과 Pages에서 live E2E 확인한다.
-5. 이미지 파일 업로드가 필요하면 별도 Storage/Billing·Rules 결정을 한다. 현재 V1 완료 범위는 URL 입력이다.
+1. 이 PC에 Java 21 JDK를 설치하고 PATH/`java -version`을 확인한다.
+2. demo-project Emulator 명령을 실행해 6개 Rules 목표를 동적으로 증명한다.
+3. 실패 시 원인을 분석해 최소 수정하고 Emulator + 기존 test/lint/build를 재실행한다.
+4. PASS 후 `dangjeju` Firestore Rules를 live deploy하고 배포 성공을 확인한다.
+5. 현재 Owner가 실제로 로그인하는 Firebase Auth 계정의 UID를 안전하게 확인하고, 그 UID에만 `admins/{uid}` = `{ role: "admin", active: true }`를 1회 생성한다. UID를 추측하지 않는다.
+6. GitHub Pages와 Firebase Hosting에서 관리자 버튼/직접 URL 차단/Place update/Source write 거부/기존 로그인·찜·검색 회귀를 live E2E 확인한다. 실제 Place write가 필요하면 영향이 적은 필드를 사용하고 원래 값을 기록한 뒤 검증 후 원상복원한다.
+7. 결과를 STATE에 기록하고 feature branch commit/push 후 최종 SHA와 PASS/잔여 blocker만 보고한다.
+8. 새 Billing/Storage·새 credential·PR/main merge가 필요한 경우에만 그 지점에서 멈춘다.
 
 ## handoff
 
-코드 구현/독립 review Acceptance는 충족했고 기존 agy 코드 판정은 PASS다. 후속 Rules Emulator 동적 검증만 Java 부재로 미완료이며, harness coverage는 Ani가 확인했다. Owner가 로컬 Java 21 JDK 설치를 승인했으므로 Hank는 설치 후 즉시 Emulator 검증을 이어간다. feature push는 Pages 자동 배포를 트리거하지만 Firebase Hosting이나 Firestore Rules를 배포하지 않는다.
+코드 구현/독립 review Acceptance는 충족했고 기존 agy 코드 판정은 PASS다. Owner는 2026-09-19 이번 V1을 **중간 승인 없이 운영 적용·관리자 등록·live E2E까지 끝까지 완료**하도록 승인했다. Hank는 위 남은 실행 순서를 자율적으로 수행하고, 완료 후 STATE 갱신·commit/push·최종 보고 후 중단한다.
