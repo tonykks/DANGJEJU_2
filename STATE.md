@@ -7,10 +7,10 @@
 - **WORK_ID:** admin-place-editor-v1
 - **Branch:** `feature/firestore-place-ui`
 - **요구사항 기준:** 루트 `requirement.md`
-- **현재 단계:** admin-place-editor-v1의 구현·Rules/관리자/Hosting 운영 적용과 자동 검증을 완료했다. 최종 구현 SHA `9ce33f4116f22015432a1f695bf9f84b8cd00a65`는 local/tracking/remote 및 성공한 Pages workflow와 일치하고, Hosting/Pages 최신 bundle·route·asset과 읽기 전용 live smoke도 재확인했다.
+- **현재 단계:** Owner 실제 브라우저 E2E에서 관리자 Place 저장이 `Missing or insufficient permissions`로 실패했고, 여러 Field confirmation 표시도 재검증이 필요해 **bugfix 단계로 재개**한다. 기존 자동/Emulator 검증 완료 기록은 보존하되 실제 E2E 실패를 우선한다.
 - **현재 담당 / LAST_UPDATED_BY:** Hank, 2026-09-20
-- **다음 담당 / 다음 행동:** Owner가 지원 browser를 연결해 로그인한 뒤 아래 수동 확인 항목만 수행한다. 자동화 가능한 남은 작업은 없다.
-- **Blocker:** Browser runtime에서 사용 가능한 browser가 0개였고, 기존 Firebase CLI OAuth credential은 Firebase Web Auth의 Google provider client와 달라 표준 `signInWithIdp`가 400으로 거부됐다. privileged custom-token 우회나 새 계정/credential 생성은 사용하지 않았다. 따라서 **Owner 인증 브라우저 세션이 필요한 UI click/write E2E만 미완료**이며 나머지 운영 적용·검증은 완료다.
+- **다음 담당 / 다음 행동:** Hank가 원격 최신 상태로 sync하고 `ADMIN_PLACE_EDITOR_OWNER_E2E_FIX.md`를 기준으로 실제 live document shape/payload를 재현해 원인을 특정하고 최소 수정·검증·필요한 운영 재배포까지 완료한다.
+- **Blocker:** 기술 blocker는 아직 확정되지 않았다. 실제 Owner 브라우저에서 write permission 실패가 재현됐으며 원인 규명이 필요하다. Firebase CLI는 logout 상태이므로 Rules/Hosting 재배포가 필요할 경우 Owner의 정상 `firebase login` 상호작용만 필요할 수 있다.
 - **Hosting (운영 재배포 완료):** https://dangjeju.web.app
 - **Pages (feature preview):** https://tonykks.github.io/DANGJEJU_2/ — feature push가 GitHub Pages workflow를 자동 실행한다.
 - **Firebase CLI session:** 노출됐던 CLI credential은 모든 Firebase 작업 종료 후 공식 `firebase logout`으로 제거했고, 민감정보 없이 `FIREBASE_LOGIN_COUNT=0`을 확인했다. 향후 Firebase CLI 작업에는 Owner의 대화형 `firebase login`이 필요하다.
@@ -67,6 +67,14 @@
 - **여전히 승인 범위 밖:** Firebase Storage/Billing 신규 활성화, 새 계정/credential 생성·요구, PR 생성, main merge, 범위를 바꾸는 기능 추가.
 - Firebase Hosting은 live 검사에서 admin bundle 부재가 실제 확인되어 승인 조건에 따라 재배포했다. Storage/Billing·PR/main merge는 변경하지 않았다.
 - 기존 untracked `NUL`, `tools/kto_data_probe/`는 보존하고 이번 commit 대상에서 제외한다.
+
+## 현재 발견된 Owner E2E 결함 — 수정 필요
+
+- Owner 실제 브라우저에서 관리자 로그인/관리 버튼/관리 경로/업체 검색은 성공했다.
+- 여러 Field를 선택·입력했으나 confirmation modal에 예상보다 적은 변경 항목이 표시되는 현상이 확인됐다. 정확한 원인은 `ADMIN_PLACE_EDITOR_OWNER_E2E_FIX.md` 기준으로 재현·진단한다.
+- 실제 `확인하고 저장` 시 Firestore가 `Missing or insufficient permissions`로 Place update를 거부했다. Emulator synthetic PASS와 달리 **실제 live document shape/payload 기반 E2E가 실패**했으므로 현재 V1은 수정 후 재검증 상태다.
+- 이미지 파일 업로드는 이번 수정 범위가 아니며 URL 입력 방식을 유지한다.
+- **다음 행동:** Hank가 원격 sync 후 `ADMIN_PLACE_EDITOR_OWNER_E2E_FIX.md`를 읽고 Codex CLI 구현/수정 + agy 독립 검증으로 두 현상을 끝까지 해결한다.
 
 ## Owner 수동 확인 항목
 
