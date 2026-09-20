@@ -332,32 +332,38 @@ service cloud.firestore {
       ];
     }
 
-    function allRootClearableFieldNames() {
+    function stringClearableRootFieldNames() {
       return [
-        'address', 'businessHours', 'cautionNotes', 'closedDays', 'fullDescription',
-        'instagramUrl', 'latitude', 'longitude', 'parkingInfo', 'phone',
-        'primaryImageUrl', 'recommendedPoints', 'roadAddress', 'secondaryImageUrl',
-        'shortDescription', 'tags'
+        'address', 'roadAddress', 'phone', 'primaryImageUrl', 'secondaryImageUrl',
+        'shortDescription', 'fullDescription', 'parkingInfo', 'businessHours',
+        'closedDays', 'instagramUrl'
       ];
     }
 
-    function validClearedValues(data, cleared) {
-      return (!cleared.hasAny(['address']) || data.address == '')
-        && (!cleared.hasAny(['roadAddress']) || data.roadAddress == '')
-        && (!cleared.hasAny(['latitude']) || data.latitude == null)
-        && (!cleared.hasAny(['longitude']) || data.longitude == null)
-        && (!cleared.hasAny(['phone']) || data.phone == '')
-        && (!cleared.hasAny(['primaryImageUrl']) || data.primaryImageUrl == '')
-        && (!cleared.hasAny(['secondaryImageUrl']) || data.secondaryImageUrl == '')
-        && (!cleared.hasAny(['shortDescription']) || data.shortDescription == '')
-        && (!cleared.hasAny(['fullDescription']) || data.fullDescription == '')
-        && (!cleared.hasAny(['parkingInfo']) || data.parkingInfo == '')
-        && (!cleared.hasAny(['businessHours']) || data.businessHours == '')
-        && (!cleared.hasAny(['closedDays']) || data.closedDays == '')
-        && (!cleared.hasAny(['instagramUrl']) || data.instagramUrl == '')
-        && (!cleared.hasAny(['tags']) || data.tags.size() == 0)
-        && (!cleared.hasAny(['recommendedPoints']) || data.recommendedPoints.size() == 0)
-        && (!cleared.hasAny(['cautionNotes']) || data.cautionNotes.size() == 0);
+    function validSingleClearedValue(data, field) {
+      return (field in stringClearableRootFieldNames() && data[field] == '')
+        || (field in ['latitude', 'longitude'] && data[field] == null)
+        || (field in ['tags', 'recommendedPoints', 'cautionNotes'] && data[field] == []);
+    }
+
+    function validListedClearedValues(data, clearedList) {
+      let count = clearedList.size();
+      return validSingleClearedValue(data, clearedList[0])
+        && (count == 1 || (validSingleClearedValue(data, clearedList[1])
+        && (count == 2 || (validSingleClearedValue(data, clearedList[2])
+        && (count == 3 || (validSingleClearedValue(data, clearedList[3])
+        && (count == 4 || (validSingleClearedValue(data, clearedList[4])
+        && (count == 5 || (validSingleClearedValue(data, clearedList[5])
+        && (count == 6 || (validSingleClearedValue(data, clearedList[6])
+        && (count == 7 || (validSingleClearedValue(data, clearedList[7])
+        && (count == 8 || (validSingleClearedValue(data, clearedList[8])
+        && (count == 9 || (validSingleClearedValue(data, clearedList[9])
+        && (count == 10 || (validSingleClearedValue(data, clearedList[10])
+        && (count == 11 || (validSingleClearedValue(data, clearedList[11])
+        && (count == 12 || (validSingleClearedValue(data, clearedList[12])
+        && (count == 13 || (validSingleClearedValue(data, clearedList[13])
+        && (count == 14 || validSingleClearedValue(data, clearedList[14]))
+        ))))))))))))))))))))))))));
     }
 
     function validAllClearedValues(data) {
@@ -375,10 +381,30 @@ service cloud.firestore {
 
     function validClearedFields(data, clearedList) {
       let cleared = clearedList.toSet();
-      return clearedList == allRootClearableFieldNames()
-        ? validAllClearedValues(data)
-        : cleared.hasOnly(clearableRootFieldNames())
-          && validClearedValues(data, cleared);
+      return cleared.hasOnly(clearableRootFieldNames())
+        && (cleared.size() == 16
+          ? validAllClearedValues(data)
+          : clearedList.size() <= 15
+            && validListedClearedValues(data, clearedList));
+    }
+
+    function validSingleFieldClearedAudit(data, oldData, admin) {
+      let clearedList = admin.clearedFields;
+      let cleared = clearedList.toSet();
+      let oldCleared = 'manualAdmin' in oldData
+          && oldData.manualAdmin is map
+          && 'clearedFields' in oldData.manualAdmin
+          && oldData.manualAdmin.clearedFields is list
+        ? oldData.manualAdmin.clearedFields.toSet()
+        : [].toSet();
+      let changedField = admin.changedFields[0];
+      let auditDelta = cleared.difference(oldCleared)
+        .union(oldCleared.difference(cleared));
+      return clearedList.size() == cleared.size()
+        && cleared.hasOnly(clearableRootFieldNames())
+        && auditDelta.hasOnly([changedField])
+        && (!cleared.hasAny([changedField])
+          || validSingleClearedValue(data, changedField));
     }
 
     function validPetPolicyProvenance(data, oldData) {
@@ -452,7 +478,10 @@ service cloud.firestore {
         && validPartialChangedFieldNames(changedFields, changedTopLevel)
         && admin.clearedFields is list
         && admin.clearedFields.size() <= 60
-        && (admin.clearedFields.size() == 0 || validClearedFields(data, admin.clearedFields))
+        && (admin.changedFields.size() == 1
+          ? validSingleFieldClearedAudit(data, oldData, admin)
+          : admin.clearedFields.size() == 0
+            || validClearedFields(data, admin.clearedFields))
         && admin.managedFields is list
         && admin.managedFields.size() <= 60
         && managedFields == oldManagedFields.union(changedFields);

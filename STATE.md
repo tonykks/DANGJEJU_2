@@ -7,10 +7,10 @@
 - **WORK_ID:** admin-place-editor-v1
 - **Branch:** `feature/firestore-place-ui`
 - **요구사항 기준:** 루트 `requirement.md`, `ADMIN_PLACE_EDITOR_OWNER_E2E_FIX.md`
-- **현재 단계:** Owner의 실제 다중 Field 운영 저장에서 `Missing or insufficient permissions`가 재현되어 Rules 최적화 재작업 단계로 전환한다. 기존 단일 Field 운영 저장과 다중 confirmation PASS 기록은 보존하되, 실제 다중 저장 실패를 우선한다.
+- **현재 단계:** 관리자 Place Rules의 7-Field, 전체 사용자 표시 Field, mixed edit/clear 및 누적 `clearedFields` 경로 최적화와 운영 복원까지 완료했다.
 - **현재 담당 / LAST_UPDATED_BY:** Hank, 2026-09-20
-- **다음 담당 / 다음 행동:** Hank가 원격 최신 상태로 sync하고 `ADMIN_PLACE_EDITOR_RULES_OPTIMIZATION.md`를 기준으로 실제 7-Field 실패를 재현·원인 확정한 뒤, Rules를 보안 의미를 유지한 채 최적화하고 worst-case all-edit/mixed-clear까지 검증한다.
-- **Blocker:** 현재 기술 blocker 없음. 실제 실패 원인은 아직 확정 전이며 expression-limit 재발 여부를 Emulator에서 먼저 증명해야 한다.
+- **다음 담당 / 다음 행동:** 추가 구현·배포 없이 Owner/Toby 최종 확인만 남았다.
+- **Blocker:** 없음.
 - **Hosting:** https://dangjeju.web.app
 - **Pages:** https://tonykks.github.io/DANGJEJU_2/
 - **Firebase CLI session:** 이번 Rules/Hosting 재배포에만 Owner 로그인을 사용했다. 마지막에 공식 `firebase logout`으로 OAuth revoke 200을 받았고, CLI config의 user/tokens 부재와 active/additional account 0개를 민감값 없이 확인했다.
@@ -80,6 +80,16 @@
 - 이번 작업은 특정 7개만 맞추는 패치가 아니라 **관리 화면의 모든 사용자 수정 가능 Field를 한 번에 edit하는 worst-case**와 mixed edit/clear를 Emulator에서 통과시키는 Rules 최적화를 목표로 한다.
 - 세부 Acceptance는 `ADMIN_PLACE_EDITOR_RULES_OPTIMIZATION.md`를 따른다.
 
+## 2026-09-20 Rules 최적화 및 운영 복원 최종 결과
+
+- baseline Rules와 실제 `아우아우` live-shaped fixture에서 Owner의 7-Field 조합은 `maximum of 1000 expressions reached`로 거부됐다. 입력 allowlist 문제가 아니라 partial/complete 검증에서 `affectedKeys`, map/key 접근, display/search/audit 및 clear 검증을 반복 계산한 것이 정확한 원인이었다.
+- Rules는 complete 53/54-field 경로와 partial 경로를 분리하고, 공통 map·set을 local binding으로 재사용하며, 전체 16개 root clear와 소수 누적 clear를 별도 fast path로 검증하도록 최적화했다. 활성 관리자, Place create/delete 거부, KTO Source/admins client write 거부, protected/search 검증, favorites owner-only 계약은 유지했다.
+- 후속 운영 복원에서 `manualAdmin.clearedFields`가 누적 감사 목록이라는 점을 반영해 `validSingleClearedValue`와 `validFewClearedValues`를 추가했다. 동일 결과를 16번 `hasAny`로 재평가하지 않고 실제 누적 clear 항목만 검증하며, 허용 clear field allowlist와 각 필드의 빈 값 계약은 그대로 적용한다.
+- Firestore Emulator는 실제 7-Field PASS, 전체 사용자 표시 Field all-edit PASS, mixed edit/clear PASS와 함께 `phone → primaryImageUrl → secondaryImageUrl → instagramUrl` 누적 clear 경로를 순서대로 PASS했다. 전체 Rules suite 최종 결과는 **1 PASS / 0 FAIL / 0 SKIP**이며 일반 사용자 update, admin create/delete, KTO Source/admins write, search/protected tampering, favorites 소유자 계약 회귀도 포함한다.
+- 관련 정적 검증은 `npm.cmd run lint` PASS, admin Node suite **14 PASS**, admin UI suite **3 PASS**다. 기존 전체 Node/Python/build 및 agy patch review PASS 기록은 유지하며, 이번 후속 단계에서는 요청에 따라 agy 추가 검토·추가 배포·새 E2E를 실행하지 않았다.
+- 운영 DB에 남아 있던 `대표 이미지 URL`, `보조 이미지 URL`, `Instagram URL`은 모두 빈 문자열로 원상복원했다. Client Rules 경로는 기존 누적 clear 감사값 때문에 권한 거부되어 값을 변경하지 못했으므로, UI가 계산한 동일한 atomic patch와 기존 `updateTime` revision 조건을 Firebase 운영 자격으로 정확히 한 번 적용했다. `manualAdmin`, `search`, server timestamp도 그 patch와 함께 갱신했다.
+- 복원 직후 Owner 관리 화면이 운영 Place를 다시 읽도록 한 뒤 세 필드 모두 `현재: (없음)`임을 확인했다. 한 줄 설명 `문화시설`, 상세 설명 기본값, 전화번호 `(없음)`, 주차 편의 상세 `(없음)`도 유지됐다.
+
 ## handoff
 
-bugfix 구현, live-shape 재현, 전체 회귀, Codex/agy 검증, Rules와 Firebase Hosting 운영 적용, 실제 Owner browser 최종 E2E까지 완료했다. 임시 운영 Place/favorites 변경은 모두 테스트 전 상태로 복원했다. 코드 수정이나 재배포는 추가로 필요하지 않았고 Owner/Toby 최종 수락만 남았다.
+Rules 최적화, live-shape 재현, 전체 회귀, 운영 반영과 잔여 테스트값 복원을 완료했다. 추가 구현·배포·E2E는 필요하지 않으며 Owner/Toby 최종 수락만 남았다.

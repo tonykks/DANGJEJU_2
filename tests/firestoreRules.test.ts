@@ -218,6 +218,49 @@ test('rules enforce active-admin place updates while preserving public catalog a
     assert.equal(savedSevenField?.instagramUrl, ownerSevenFieldChanges.instagramUrl);
     assert.equal(savedSevenField?.amenities?.parkingDescription, ownerSevenFieldChanges.amenities.parkingDescription);
 
+    await updateDoc(doc(active, 'places/kto-99999999'), {
+      fullDescription: '',
+      manualAdmin: {
+        source: 'ADMIN_UI', updatedAt: serverTimestamp(),
+        changedFields: ['fullDescription'], changedTopLevel: ['fullDescription'],
+        clearedFields: ['fullDescription'], managedFields: ownerSevenChangedFields,
+      },
+      search: { ...baseSearch, inputHash: '7'.repeat(64), derivedAt: serverTimestamp() },
+      updatedAt: serverTimestamp(),
+    });
+    assert.equal((await getDoc(doc(guest, 'places/kto-99999999'))).data()?.fullDescription, '');
+
+    await updateDoc(doc(active, 'places/kto-99999999'), {
+      phone: '',
+      manualAdmin: {
+        source: 'ADMIN_UI', updatedAt: serverTimestamp(),
+        changedFields: ['phone'], changedTopLevel: ['phone'],
+        clearedFields: ['fullDescription', 'phone'], managedFields: ownerSevenChangedFields,
+      },
+      search: { ...baseSearch, inputHash: '6'.repeat(64), derivedAt: serverTimestamp() },
+      updatedAt: serverTimestamp(),
+    });
+    assert.equal((await getDoc(doc(guest, 'places/kto-99999999'))).data()?.phone, '');
+
+    const cumulativeClears = [
+      { field: 'primaryImageUrl', clearedFields: ['fullDescription', 'phone', 'primaryImageUrl'], hash: '5' },
+      { field: 'secondaryImageUrl', clearedFields: ['fullDescription', 'phone', 'primaryImageUrl', 'secondaryImageUrl'], hash: '4' },
+      { field: 'instagramUrl', clearedFields: ['fullDescription', 'instagramUrl', 'phone', 'primaryImageUrl', 'secondaryImageUrl'], hash: '3' },
+    ] as const;
+    for (const { field, clearedFields, hash } of cumulativeClears) {
+      await updateDoc(doc(active, 'places/kto-99999999'), {
+        [field]: '',
+        manualAdmin: {
+          source: 'ADMIN_UI', updatedAt: serverTimestamp(),
+          changedFields: [field], changedTopLevel: [field],
+          clearedFields, managedFields: ownerSevenChangedFields,
+        },
+        search: { ...baseSearch, inputHash: hash.repeat(64), derivedAt: serverTimestamp() },
+        updatedAt: serverTimestamp(),
+      });
+      assert.equal((await getDoc(doc(guest, 'places/kto-99999999'))).data()?.[field], '');
+    }
+
     const allEditPetPolicy = {
       petInformationStatus: 'ADMIN_CONFIRMED', petAcceptance: 'TRUE', smallDogAllowed: 'TRUE',
       mediumDogAllowed: 'FALSE', largeDogAllowed: 'TRUE', indoorAllowed: 'TRUE', outdoorAllowed: 'FALSE',
@@ -375,6 +418,18 @@ test('rules enforce active-admin place updates while preserving public catalog a
     }));
     await denied(updateDoc(doc(active, 'places/kto-1'), {
       ...validUpdate('active-admin', ''), manualAdmin: attackAudit(['name'], ['name'], ['name']),
+    }));
+    await denied(updateDoc(doc(active, 'places/kto-1'), {
+      phone: '064-999-9999',
+      manualAdmin: attackAudit(['phone'], ['phone'], ['phone']),
+      search: { ...baseSearch, inputHash: '1'.repeat(64), derivedAt: serverTimestamp() },
+      updatedAt: serverTimestamp(),
+    }));
+    await denied(updateDoc(doc(active, 'places/kto-1'), {
+      phone: '064-888-8888',
+      manualAdmin: attackAudit(['phone'], ['phone'], ['address']),
+      search: { ...baseSearch, inputHash: '2'.repeat(64), derivedAt: serverTimestamp() },
+      updatedAt: serverTimestamp(),
     }));
     await denied(updateDoc(doc(active, 'places/kto-1'), {
       petPolicy: { ...petPolicy, petInformationStatus: 'ADMIN_CONFIRMED' },
