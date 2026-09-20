@@ -7,10 +7,10 @@
 - **WORK_ID:** admin-place-editor-v1
 - **Branch:** `feature/firestore-place-ui`
 - **요구사항 기준:** 루트 `requirement.md`, `ADMIN_PLACE_EDITOR_OWNER_E2E_FIX.md`
-- **현재 단계:** 수정·자동 검증·운영 배포에 이어 Making_Agent(Profile 9)의 실제 Owner 로그인 browser로 최종 E2E까지 완료했다. 다중 Field 확인, 운영 Place 저장/공개 반영/원복, favorites 재로그인 지속성/삭제 지속성이 모두 PASS했다.
+- **현재 단계:** Owner의 실제 다중 Field 운영 저장에서 `Missing or insufficient permissions`가 재현되어 Rules 최적화 재작업 단계로 전환한다. 기존 단일 Field 운영 저장과 다중 confirmation PASS 기록은 보존하되, 실제 다중 저장 실패를 우선한다.
 - **현재 담당 / LAST_UPDATED_BY:** Hank, 2026-09-20
-- **다음 담당 / 다음 행동:** 기술 검증 잔여 없음. Owner/Toby 최종 수락만 남았다. PR/main merge는 별도 Owner 지시 전 수행하지 않는다.
-- **Blocker:** 없음.
+- **다음 담당 / 다음 행동:** Hank가 원격 최신 상태로 sync하고 `ADMIN_PLACE_EDITOR_RULES_OPTIMIZATION.md`를 기준으로 실제 7-Field 실패를 재현·원인 확정한 뒤, Rules를 보안 의미를 유지한 채 최적화하고 worst-case all-edit/mixed-clear까지 검증한다.
+- **Blocker:** 현재 기술 blocker 없음. 실제 실패 원인은 아직 확정 전이며 expression-limit 재발 여부를 Emulator에서 먼저 증명해야 한다.
 - **Hosting:** https://dangjeju.web.app
 - **Pages:** https://tonykks.github.io/DANGJEJU_2/
 - **Firebase CLI session:** 이번 Rules/Hosting 재배포에만 Owner 로그인을 사용했다. 마지막에 공식 `firebase logout`으로 OAuth revoke 200을 받았고, CLI config의 user/tokens 부재와 active/additional account 0개를 민감값 없이 확인했다.
@@ -71,6 +71,14 @@
 - favorites: 기존 2개 → `아우아우` 임시 추가 3개 → 재로그인 후 유지 PASS → 삭제 2개 → 재로그인 후 삭제 유지 PASS. 최종 상태/개수 원복 확인.
 - 콘솔에는 기존 favicon 404와 Google popup의 Cross-Origin-Opener-Policy 메시지만 있었고 Firestore permission 오류는 없었다.
 - 새 credential/custom token, Storage/Billing, Rules 우회, 추가 배포, PR/main merge는 수행하지 않았다.
+
+## 2026-09-20 추가 Owner 실사용 실패
+
+- Owner가 실제 관리자 화면에서 한 줄 설명, 상세 설명, 전화번호, 대표 이미지 URL, 보조 이미지 URL, Instagram URL, 주차 편의 상세 등 다중 Field를 한 번에 저장하려 했고 confirmation은 정상 표시됐다.
+- 최종 저장은 `Missing or insufficient permissions`로 거부됐다.
+- 입력값 자체는 client validation을 통과했다. 이전 3-Field Rules fixture와 단일 Field 운영 E2E만으로는 최악 조건을 충분히 검증하지 못했다.
+- 이번 작업은 특정 7개만 맞추는 패치가 아니라 **관리 화면의 모든 사용자 수정 가능 Field를 한 번에 edit하는 worst-case**와 mixed edit/clear를 Emulator에서 통과시키는 Rules 최적화를 목표로 한다.
+- 세부 Acceptance는 `ADMIN_PLACE_EDITOR_RULES_OPTIMIZATION.md`를 따른다.
 
 ## handoff
 
