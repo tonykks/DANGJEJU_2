@@ -78,6 +78,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
   const [plan, setPlan] = useState<AdminEditPlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const selectedPlace = useMemo(() => loaded ? adaptPlace(loaded.place, [loaded.source]) : null, [loaded]);
 
   function initialize(next: AdminLoadedPlace) {
@@ -85,6 +86,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
     setSelected(new Set());
     setClears(new Set());
     setPlan(null);
+    setActionError(null);
     setDrafts(Object.fromEntries(ADMIN_FIELD_DEFINITIONS.map((definition) => [definition.id, adminValueToDraft(adminFieldCurrentValue(definition, next))])));
   }
 
@@ -94,12 +96,13 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
     setClears(new Set());
     setDrafts({});
     setPlan(null);
+    setActionError(null);
   }
 
   async function runSearch(event: FormEvent) {
     event.preventDefault();
     if (!db || busy) return;
-    setBusy(true); setMessage(null); setResults([]); clearLoadedPlace();
+    setBusy(true); setMessage(null); setActionError(null); setResults([]); clearLoadedPlace();
     try {
       const found = await searchAdminPlacesByName(db, queryText);
       setResults(found);
@@ -112,7 +115,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
 
   async function selectPlace(placeId: string) {
     if (!db || busy) return;
-    setBusy(true); setMessage(null); clearLoadedPlace();
+    setBusy(true); setMessage(null); setActionError(null); clearLoadedPlace();
     try { initialize(await loadAdminPlace(db, placeId)); }
     catch (error) { setMessage(error instanceof Error ? error.message : '장소 정보를 불러오지 못했습니다.'); }
     finally { setBusy(false); }
@@ -120,6 +123,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
 
   function toggleField(id: string) {
     setPlan(null);
+    setActionError(null);
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(id)) {
@@ -137,19 +141,20 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
     try {
       setPlan(buildAdminEditPlan(loaded, selected, drafts, clears, uid));
       setMessage(null);
+      setActionError(null);
     } catch (error) {
       setPlan(null);
-      setMessage(error instanceof Error ? error.message : '입력값을 확인해 주세요.');
+      setActionError(error instanceof Error ? error.message : '입력값을 확인해 주세요.');
     }
   }
 
   async function save() {
     if (!db || !loaded || !plan || busy) return;
-    setBusy(true); setMessage(null);
+    setBusy(true); setMessage(null); setActionError(null);
     try {
       await saveAdminPlace(db, loaded, plan, uid);
     } catch (error) {
-      setMessage(error instanceof Error ? `저장하지 못했습니다. 선택한 항목은 반영되지 않았습니다: ${error.message}` : '저장하지 못했습니다. 선택한 항목은 반영되지 않았습니다.');
+      setActionError(error instanceof Error ? `저장하지 못했습니다. 선택한 항목은 반영되지 않았습니다: ${error.message}` : '저장하지 못했습니다. 선택한 항목은 반영되지 않았습니다.');
       setBusy(false);
       return;
     }
@@ -173,20 +178,20 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
           <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-amber-600" /><h2 className="text-xl font-black text-slate-900">장소 정보 관리</h2></div>
           <p className="mt-1 text-xs text-slate-500">장소명 접두검색 → 장소 선택 → 수정 항목 선택 → 변경 확인 → 저장</p>
         </div>
-        <button onClick={onHome} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><ArrowLeft className="h-4 w-4" />홈으로</button>
+        <button onClick={onHome} className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><ArrowLeft className="h-4 w-4" />홈으로</button>
       </div>
 
       <section className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
         <form onSubmit={runSearch} className="flex gap-2">
           <label className="sr-only" htmlFor="admin-place-search">업체명 검색</label>
           <input id="admin-place-search" value={queryText} onChange={(event) => setQueryText(event.target.value)} maxLength={80} placeholder="업체명 접두어를 입력하세요" className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-amber-500" />
-          <button disabled={busy} className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Search className="h-4 w-4" />검색</button>
+          <button disabled={busy} aria-busy={busy} className="inline-flex cursor-pointer items-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"><Search className="h-4 w-4" />{busy ? '처리 중…' : '검색'}</button>
         </form>
         <p className="mt-2 text-[11px] text-slate-500">비어 있거나 80자를 넘는 검색은 실행하지 않으며, Firestore `name` 접두검색 결과를 최대 {ADMIN_PLACE_QUERY_LIMIT}개만 읽습니다.</p>
         {results.length > 0 && (
           <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
             {adaptPlaceDocs(results).map((place) => (
-              <li key={place.id}><button type="button" onClick={() => void selectPlace(place.id)} className="w-full px-3 py-3 text-left hover:bg-amber-50">
+              <li key={place.id}><button type="button" disabled={busy} onClick={() => void selectPlace(place.id)} className="w-full cursor-pointer px-3 py-3 text-left hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50">
                 <span className="block text-sm font-bold text-slate-900">{place.name}</span>
                 <span className="mt-0.5 block text-xs text-slate-500">{place.id} · {place.roadAddress || place.address || '주소 미확인'} · {place.category}</span>
               </button></li>
@@ -217,13 +222,13 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
                   return (
                     <div key={definition.id} className={`rounded-xl border p-3 ${editing ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'}`}>
                       <label className="flex items-start gap-2">
-                        <input type="checkbox" checked={editing} onChange={() => toggleField(definition.id)} className="mt-0.5 h-4 w-4 accent-amber-600" />
+                        <input type="checkbox" checked={editing} onChange={() => toggleField(definition.id)} className="mt-0.5 h-4 w-4 cursor-pointer accent-amber-600" />
                         <span className="min-w-0"><span className="block text-xs font-bold text-slate-800">{definition.label}</span><span className="mt-0.5 block break-words text-[11px] text-slate-500">현재: {formatAdminValue(current)}</span></span>
                       </label>
                       {editing && (
                         <div className="mt-3 space-y-2">
-                          {definition.allowClear && <label className="flex items-center gap-2 text-[11px] font-bold text-rose-700"><input type="checkbox" checked={clearing} onChange={() => setClears((values) => { const next = new Set(values); if (next.has(definition.id)) next.delete(definition.id); else next.add(definition.id); setPlan(null); return next; })} className="accent-rose-600" />값 지우기 (입력란 공백과 구분)</label>}
-                          <EditorInput definition={definition} value={drafts[definition.id] ?? ''} disabled={clearing} onChange={(value) => { setDrafts((values) => ({ ...values, [definition.id]: value })); setPlan(null); }} />
+                          {definition.allowClear && <label className="flex cursor-pointer items-center gap-2 text-[11px] font-bold text-rose-700"><input type="checkbox" checked={clearing} onChange={() => setClears((values) => { const next = new Set(values); if (next.has(definition.id)) next.delete(definition.id); else next.add(definition.id); setPlan(null); setActionError(null); return next; })} className="cursor-pointer accent-rose-600" />값 지우기 (입력란 공백과 구분)</label>}
+                          <EditorInput definition={definition} value={drafts[definition.id] ?? ''} disabled={clearing} onChange={(value) => { setDrafts((values) => ({ ...values, [definition.id]: value })); setPlan(null); setActionError(null); }} />
                           {image && <div className="grid grid-cols-2 gap-2"><PreviewImage src={String(current ?? '')} label="변경 전" /><PreviewImage src={clearing ? '' : drafts[definition.id] ?? ''} label="변경 후" /></div>}
                         </div>
                       )}
@@ -234,8 +239,9 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
             </fieldset>
           ))}
 
-          <div className="sticky bottom-3 z-20 flex justify-end gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
-            <button disabled={busy || selected.size === 0} onClick={prepareConfirmation} className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-black text-white disabled:opacity-50">변경 확인</button>
+          <div className="sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+            <div aria-live="polite" className="min-w-0 flex-1">{actionError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800">{actionError}</p>}</div>
+            <button disabled={busy || selected.size === 0} aria-busy={busy} onClick={prepareConfirmation} className="cursor-pointer rounded-xl bg-amber-500 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{busy ? '처리 중…' : '변경 확인'}</button>
           </div>
         </section>
       )}
@@ -249,8 +255,8 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
               {plan.changes.map((change) => <li key={change.id} className="rounded-xl border border-slate-200 p-3 text-sm"><strong>{change.label}</strong><div className="mt-1 grid grid-cols-[1fr_auto_1fr] gap-2 text-xs text-slate-600"><span className="break-words">{formatAdminValue(change.before)}</span><span>→</span><span className="break-words font-bold text-slate-900">{change.cleared ? '(명시적으로 지움)' : formatAdminValue(change.after)}</span></div></li>)}
             </ul>
             <AdminUnchangedSelectionNotice selections={plan.unchangedSelections} />
-            {message && <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{message}</div>}
-            <div className="mt-5 flex justify-end gap-2"><button onClick={() => setPlan(null)} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold">돌아가기</button><button onClick={() => void save()} disabled={busy} className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{busy ? '저장 중…' : '확인하고 저장'}</button></div>
+            {actionError && <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{actionError}</div>}
+            <div className="mt-5 flex justify-end gap-2"><button onClick={() => { setPlan(null); setActionError(null); }} disabled={busy} className="cursor-pointer rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">돌아가기</button><button onClick={() => void save()} disabled={busy} aria-busy={busy} className="inline-flex cursor-pointer items-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{busy ? '저장 중…' : '확인하고 저장'}</button></div>
           </section>
         </div>
       )}

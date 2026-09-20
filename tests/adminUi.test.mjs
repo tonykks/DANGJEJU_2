@@ -24,3 +24,11 @@ test('admin confirmation explicitly identifies selected fields omitted as unchan
   assert.match(adminEditorSource, /AdminUnchangedSelectionNotice selections=\{plan\.unchangedSelections\}/);
   assert.match(adminEditorSource, /selection\.label\}: \{formatAdminValue\(selection\.value\)\}/);
 });
+
+test('admin actions expose pointer, disabled, progress, and inline error states', () => {
+  assert.match(adminEditorSource, /cursor-pointer/);
+  assert.match(adminEditorSource, /disabled:cursor-not-allowed/);
+  assert.match(adminEditorSource, /aria-busy=\{busy\}/);
+  assert.match(adminEditorSource, /busy \? '저장 중…' : '확인하고 저장'/);
+  assert.match(adminEditorSource, /role="alert"[\s\S]*actionError/);
+});

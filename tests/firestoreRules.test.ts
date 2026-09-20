@@ -5,6 +5,7 @@ import {
   collection, collectionGroup, connectFirestoreEmulator, deleteDoc, doc, getDoc, getDocs,
   getFirestore, query, serverTimestamp, setDoc, updateDoc, where, type Firestore,
 } from 'firebase/firestore/lite';
+import { ADMIN_FIELD_DEFINITIONS } from '../src/lib/adminPlaceEditor';
 
 const emulator = process.env.FIRESTORE_EMULATOR_HOST;
 
@@ -27,6 +28,24 @@ const petPolicy = {
   spaceDescription: null, leashDescription: null, petFee: null, petFeeDescription: null, otherPetPolicy: null,
 };
 const amenities = { freeParking: 'UNKNOWN', dogMenu: 'UNKNOWN', waterBowlProvided: 'UNKNOWN', wasteBagsProvided: 'UNKNOWN', fencedYard: 'UNKNOWN', photoZone: 'UNKNOWN', parkingDescription: null };
+const petDetailKeys = [
+  'acmpyTypeCd', 'acmpyNeedMtr', 'acmpyPsblCpam', 'etcAcmpyInfo',
+  'relaAcdntRiskMtr', 'relaFrnshPrdlst', 'relaPosesFclty',
+  'relaPurcPrdlst', 'relaRntlPrdlst',
+] as const;
+const allUiFieldIds = ADMIN_FIELD_DEFINITIONS.map(({ id }) => id).sort();
+const allAuditFieldIds = [...allUiFieldIds, 'petPolicy.petInformationStatus'].sort();
+const allChangedTopLevel = [
+  'address', 'adminOverrides', 'amenities', 'businessHours', 'cautionNotes', 'closedDays',
+  'fullDescription', 'instagramUrl', 'latitude', 'longitude', 'name', 'parkingInfo', 'petPolicy',
+  'phone', 'primaryImageUrl', 'recommendedPoints', 'regionArea', 'roadAddress',
+  'secondaryImageUrl', 'serviceCategory', 'shortDescription', 'tags',
+].sort();
+const allRootClearableIds = [
+  'address', 'roadAddress', 'latitude', 'longitude', 'phone', 'primaryImageUrl',
+  'secondaryImageUrl', 'shortDescription', 'fullDescription', 'parkingInfo',
+  'businessHours', 'closedDays', 'instagramUrl', 'tags', 'recommendedPoints', 'cautionNotes',
+].sort();
 const baseSearch = {
   version: 1, region: 'JEJU_CITY', category: 'CAFE', regionBasis: 'MUNICIPALITY', categoryBasis: 'KTO_CAT3',
   basicScore: 10, petScore: 2, totalScore: 12, scoreVersion: 'hank-place-field-audit-v1',
@@ -99,6 +118,7 @@ test('rules enforce active-admin place updates while preserving public catalog a
     delete sparsePlace.regionArea;
     await seed('places/kto-3', sparsePlace);
     await seed('places/kto-1/sources/canonical', { source: 'KTO', placeId: 'kto-1' });
+    await seed('places/kto-99999999/sources/canonical', { source: 'KTO', placeId: 'kto-99999999', immutable: 'worst-case-proof' });
     await seed('places/kto-2/sources/nested-public', { source: 'OTHER', placeId: 'kto-2' });
     await seed('misc/rules/sources/valid-kto', { source: 'KTO', placeId: 'kto-2' });
     await seed('misc/rules/sources/private', { source: 'OTHER', placeId: 'kto-3' });
@@ -141,7 +161,7 @@ test('rules enforce active-admin place updates while preserving public catalog a
     await updateDoc(doc(active, 'places/kto-3'), validUpdate('active-admin', 'sparse 관리자 변경'));
     assert.equal((await getDoc(doc(guest, 'places/kto-3'))).data()?.name, 'sparse 관리자 변경');
     const liveShapeChanges = {
-      phone: '064-123-4567',
+      phone: '064-765-4321',
       primaryImageUrl: 'https://example.test/aou-aou.jpg',
       shortDescription: '반려견과 함께 쉬어 가는 공간',
     };
@@ -160,6 +180,139 @@ test('rules enforce active-admin place updates while preserving public catalog a
     assert.deepEqual(
       Object.fromEntries(Object.keys(liveShapeChanges).map((key) => [key, savedLiveShape?.[key]])),
       liveShapeChanges,
+    );
+
+    const ownerSevenFieldChanges = {
+      shortDescription: '아우아우 7개 필드 저장 재현',
+      fullDescription: 'Owner가 실제 관리 화면에서 시도한 다중 저장 조합을 재현하는 설명입니다.',
+      phone: '064-123-4567',
+      primaryImageUrl: 'https://example.test/aou-aou-primary.jpg',
+      secondaryImageUrl: 'https://example.test/aou-aou-secondary.jpg',
+      instagramUrl: 'https://www.instagram.com/aouaou_e2e',
+      amenities: { ...amenities, parkingDescription: '주차 편의 상세 7개 필드 재현' },
+    };
+    const ownerSevenChangedFields = [
+      'amenities.parkingDescription', 'fullDescription', 'instagramUrl', 'phone',
+      'primaryImageUrl', 'secondaryImageUrl', 'shortDescription',
+    ];
+    await updateDoc(doc(active, 'places/kto-99999999'), {
+      ...ownerSevenFieldChanges,
+      manualAdmin: {
+        source: 'ADMIN_UI', updatedAt: serverTimestamp(),
+        changedFields: ownerSevenChangedFields,
+        changedTopLevel: [
+          'amenities', 'fullDescription', 'instagramUrl', 'phone',
+          'primaryImageUrl', 'secondaryImageUrl', 'shortDescription',
+        ],
+        clearedFields: [], managedFields: ownerSevenChangedFields,
+      },
+      search: { ...baseSearch, inputHash: '7'.repeat(64), derivedAt: serverTimestamp() },
+      updatedAt: serverTimestamp(),
+    });
+    const savedSevenField = (await getDoc(doc(guest, 'places/kto-99999999'))).data();
+    assert.equal(savedSevenField?.shortDescription, ownerSevenFieldChanges.shortDescription);
+    assert.equal(savedSevenField?.fullDescription, ownerSevenFieldChanges.fullDescription);
+    assert.equal(savedSevenField?.phone, ownerSevenFieldChanges.phone);
+    assert.equal(savedSevenField?.primaryImageUrl, ownerSevenFieldChanges.primaryImageUrl);
+    assert.equal(savedSevenField?.secondaryImageUrl, ownerSevenFieldChanges.secondaryImageUrl);
+    assert.equal(savedSevenField?.instagramUrl, ownerSevenFieldChanges.instagramUrl);
+    assert.equal(savedSevenField?.amenities?.parkingDescription, ownerSevenFieldChanges.amenities.parkingDescription);
+
+    const allEditPetPolicy = {
+      petInformationStatus: 'ADMIN_CONFIRMED', petAcceptance: 'TRUE', smallDogAllowed: 'TRUE',
+      mediumDogAllowed: 'FALSE', largeDogAllowed: 'TRUE', indoorAllowed: 'TRUE', outdoorAllowed: 'FALSE',
+      carrierRequired: 'TRUE', leashRequired: 'FALSE', offLeashZoneAvailable: 'TRUE',
+      allowedBreeds: ['all-breed'], allowedSizes: ['small', 'large'], sizeDescription: 'all size description',
+      spacePolicy: 'ALL_SPACE', spaceDescription: 'all space description', leashDescription: 'all leash description',
+      petFee: 12000, petFeeDescription: 'all fee description', otherPetPolicy: 'all other policy',
+    };
+    const allEditPetDetails = Object.fromEntries(petDetailKeys.map((key) => [key, `all-${key}`]));
+    const allEditAmenities = {
+      freeParking: 'TRUE', dogMenu: 'TRUE', waterBowlProvided: 'FALSE', wasteBagsProvided: 'TRUE',
+      fencedYard: 'FALSE', photoZone: 'TRUE', parkingDescription: 'all amenities parking',
+    };
+    const allEditSearch = {
+      ...baseSearch, region: 'WEST', category: 'FOOD', regionBasis: 'SERVICE_REGION',
+      categoryBasis: 'SERVICE_CATEGORY', basicScore: 15, petScore: 9, totalScore: 24,
+      petTier: 'RICH', petSortKey: 30915, inputHash: '1'.repeat(64), derivedAt: serverTimestamp(),
+    };
+    const sourceBeforeWorstCases = (await getDoc(doc(guest, 'places/kto-99999999/sources/canonical'))).data();
+    await updateDoc(doc(active, 'places/kto-99999999'), {
+      name: '아우아우 전체 필드 수정', serviceCategory: 'FOOD', regionArea: 'WEST',
+      address: '제주특별자치도 제주시 전체 수정', roadAddress: '제주 전체로 1',
+      latitude: 33.45, longitude: 126.3, coordinateQualityStatus: 'ADMIN_CONFIRMED',
+      phone: '064-222-3333', primaryImageUrl: 'https://example.test/all-primary.jpg',
+      secondaryImageUrl: 'https://example.test/all-secondary.jpg', shortDescription: 'all short',
+      fullDescription: 'all full', parkingInfo: 'all parking', businessHours: 'all hours',
+      closedDays: 'all closed', instagramUrl: 'https://instagram.com/all_edit', tags: ['all', 'edit'],
+      petPolicy: allEditPetPolicy, adminOverrides: { petDetails: allEditPetDetails },
+      amenities: allEditAmenities, recommendedPoints: ['all recommendation'], cautionNotes: ['all caution'],
+      manualAdmin: {
+        source: 'ADMIN_UI', updatedAt: serverTimestamp(), changedFields: allAuditFieldIds,
+        changedTopLevel: allChangedTopLevel, clearedFields: [], managedFields: allAuditFieldIds,
+      },
+      search: allEditSearch,
+      updatedAt: serverTimestamp(),
+    });
+    const savedAllEdit = (await getDoc(doc(guest, 'places/kto-99999999'))).data();
+    assert.equal(savedAllEdit?.name, '아우아우 전체 필드 수정');
+    assert.deepEqual(savedAllEdit?.petPolicy, allEditPetPolicy);
+    assert.deepEqual(savedAllEdit?.adminOverrides?.petDetails, allEditPetDetails);
+    assert.deepEqual(savedAllEdit?.amenities, allEditAmenities);
+    assert.deepEqual(savedAllEdit?.manualAdmin?.changedFields, allAuditFieldIds);
+    assert.deepEqual(savedAllEdit?.manualAdmin?.changedTopLevel, allChangedTopLevel);
+    assert.deepEqual(savedAllEdit?.manualAdmin?.managedFields, allAuditFieldIds);
+    assert.deepEqual(
+      (await getDoc(doc(guest, 'places/kto-99999999/sources/canonical'))).data(),
+      sourceBeforeWorstCases,
+    );
+
+    const mixedPetPolicy = {
+      petInformationStatus: 'ADMIN_CONFIRMED', petAcceptance: 'FALSE', smallDogAllowed: 'FALSE',
+      mediumDogAllowed: 'TRUE', largeDogAllowed: 'FALSE', indoorAllowed: 'FALSE', outdoorAllowed: 'TRUE',
+      carrierRequired: 'FALSE', leashRequired: 'TRUE', offLeashZoneAvailable: 'FALSE',
+      allowedBreeds: null, allowedSizes: null, sizeDescription: null, spacePolicy: null,
+      spaceDescription: null, leashDescription: null, petFee: null, petFeeDescription: null, otherPetPolicy: null,
+    };
+    const mixedPetDetails = Object.fromEntries(petDetailKeys.map((key) => [key, '']));
+    const mixedAmenities = {
+      freeParking: 'FALSE', dogMenu: 'FALSE', waterBowlProvided: 'TRUE', wasteBagsProvided: 'FALSE',
+      fencedYard: 'TRUE', photoZone: 'FALSE', parkingDescription: null,
+    };
+    const mixedSearch = {
+      ...baseSearch, region: 'EAST', category: 'CULTURE', regionBasis: 'SERVICE_REGION',
+      categoryBasis: 'SERVICE_CATEGORY', basicScore: 9, petScore: 5, totalScore: 14,
+      petTier: 'RICH', petSortKey: 30509, inputHash: '2'.repeat(64), derivedAt: serverTimestamp(),
+    };
+    await updateDoc(doc(active, 'places/kto-99999999'), {
+      name: '아우아우 혼합 수정', serviceCategory: 'CULTURE', regionArea: 'EAST',
+      address: '', roadAddress: '', latitude: null, longitude: null, phone: '',
+      primaryImageUrl: '', secondaryImageUrl: '', shortDescription: '', fullDescription: '',
+      parkingInfo: '', businessHours: '', closedDays: '', instagramUrl: '', tags: [],
+      petPolicy: mixedPetPolicy, adminOverrides: { petDetails: mixedPetDetails }, amenities: mixedAmenities,
+      recommendedPoints: [], cautionNotes: [],
+      manualAdmin: {
+        source: 'ADMIN_UI', updatedAt: serverTimestamp(), changedFields: allUiFieldIds,
+        changedTopLevel: allChangedTopLevel, clearedFields: allRootClearableIds,
+        managedFields: allAuditFieldIds,
+      },
+      search: mixedSearch,
+      updatedAt: serverTimestamp(),
+    });
+    const savedMixed = (await getDoc(doc(guest, 'places/kto-99999999'))).data();
+    assert.equal(savedMixed?.name, '아우아우 혼합 수정');
+    assert.equal(savedMixed?.address, '');
+    assert.equal(savedMixed?.latitude, null);
+    assert.deepEqual(savedMixed?.tags, []);
+    assert.deepEqual(savedMixed?.petPolicy, mixedPetPolicy);
+    assert.deepEqual(savedMixed?.adminOverrides?.petDetails, mixedPetDetails);
+    assert.deepEqual(savedMixed?.amenities, mixedAmenities);
+    assert.deepEqual(savedMixed?.manualAdmin?.changedFields, allUiFieldIds);
+    assert.deepEqual(savedMixed?.manualAdmin?.clearedFields, allRootClearableIds);
+    assert.deepEqual(savedMixed?.manualAdmin?.managedFields, allAuditFieldIds);
+    assert.deepEqual(
+      (await getDoc(doc(guest, 'places/kto-99999999/sources/canonical'))).data(),
+      sourceBeforeWorstCases,
     );
 
     for (const search of [
