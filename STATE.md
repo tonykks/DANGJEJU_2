@@ -7,10 +7,10 @@
 - **WORK_ID:** admin-place-editor-v1
 - **Branch:** `feature/firestore-place-ui`
 - **요구사항 기준:** 루트 `requirement.md`, `ADMIN_PLACE_EDITOR_OWNER_E2E_FIX.md`
-- **현재 단계:** Owner E2E에서 발견된 다중 Field 확인 누락 설명 문제와 운영 Place update Rules 거부의 원인을 규명해 최소 수정했고, 자동·Emulator·독립 검증 및 Rules/Hosting 운영 재배포를 완료했다.
+- **현재 단계:** 수정·자동 검증·운영 배포에 이어 Making_Agent(Profile 9)의 실제 Owner 로그인 browser로 최종 E2E까지 완료했다. 다중 Field 확인, 운영 Place 저장/공개 반영/원복, favorites 재로그인 지속성/삭제 지속성이 모두 PASS했다.
 - **현재 담당 / LAST_UPDATED_BY:** Hank, 2026-09-20
-- **다음 담당 / 다음 행동:** 연결된 실제 Owner browser가 생기면 아래 수동 확인 항목만 수행한다. 새 credential/custom token을 만들거나 Rules를 우회하지 않는다.
-- **Blocker:** Codex browser runtime에 연결된 browser가 0개라 수정 후 실제 Owner 로그인 UI write/화면 반영/복원 및 owner favorites 클릭 회귀를 자동 실행하지 못했다. Firebase CLI 로그인과 웹 앱 browser 연결은 별개다.
+- **다음 담당 / 다음 행동:** 기술 검증 잔여 없음. Owner/Toby 최종 수락만 남았다. PR/main merge는 별도 Owner 지시 전 수행하지 않는다.
+- **Blocker:** 없음.
 - **Hosting:** https://dangjeju.web.app
 - **Pages:** https://tonykks.github.io/DANGJEJU_2/
 - **Firebase CLI session:** 이번 Rules/Hosting 재배포에만 Owner 로그인을 사용했다. 마지막에 공식 `firebase logout`으로 OAuth revoke 200을 받았고, CLI config의 user/tokens 부재와 active/additional account 0개를 민감값 없이 확인했다.
@@ -55,20 +55,23 @@
 
 ## 운영 데이터와 복원
 
-- 이번 자동 검증은 운영 Place/Source/favorites를 쓰지 않았다. 실패 원인을 production write 재시도로 찾지 않고 실제 문서 read-only snapshot과 Emulator에서 재현했으므로 복원할 운영 test 값이 없다.
+- 자동/Emulator 검증 단계에서는 운영 Place/Source/favorites를 쓰지 않았다. 최종 Owner browser E2E에서만 `아우아우` 한 줄 설명을 `문화시설` → 임시 E2E 값 → `문화시설`로 저장했고, 관리자 재조회와 공개 사용자 화면에서 원복을 확인했다.
+- favorites는 기존 2개를 기준으로 기존 미찜이던 `아우아우`를 임시 추가해 3개 및 재로그인 유지 상태를 확인한 뒤 삭제했다. 다시 로그아웃/로그인해 `아우아우` 미찜과 최종 2개를 확인했으므로 테스트 전 상태로 복원됐다.
+- `아우아우`의 전화번호와 대표 이미지 URL은 다중 Field confirmation까지만 검증하고 저장하지 않았다. KTO Source는 수정하지 않았다.
 - Firestore Rules와 Hosting만 승인 범위 안에서 재배포했다. Storage/Billing, 새 account/credential, PR/main merge는 건드리지 않았다.
 - `firebase logout`이 OAuth revoke 뒤 Windows Node assertion으로 exit 1을 반환했지만 credential config는 비어 있었다. logout이 만든 credential-bearing `firebase-debug.log`도 즉시 삭제해 잔존하지 않음을 확인했다.
 - 기존 untracked `NUL`, `tools/kto_data_probe/`는 보존하고 commit에서 제외한다.
 
-## Owner 수동 확인 항목
+## 실제 Owner browser 최종 E2E
 
-연결된 실제 Owner browser가 제공되면 다음만 남아 있다.
-
-1. Owner Google 로그인 후 `관리` 버튼과 `#/admin/places` 접근을 확인한다.
-2. `아우아우` 등 업체를 검색하고 영향이 적은 Field 1개를 변경해 confirmation과 실제 사용자 화면 반영을 확인한다.
-3. 즉시 원래 값으로 복원하고 공개 화면에서 복원을 확인한다.
-4. 찜 추가 → 삭제 → 재로그인 후 상태 복원을 확인한다.
+- `playwright-making-agent` MCP로 Making_Agent(Profile 9)의 Owner 로그인 GitHub Pages를 사용했다.
+- 로그인 상태와 Header `관리` 버튼, `#/admin/places` 접근, `아우아우` 접두검색: PASS.
+- 한 줄 설명·전화번호·대표 이미지 URL에 서로 다른 임시값을 입력하고 `변경 확인` modal에 세 변경 전/후가 모두 표시됨: PASS. 이 세 항목은 저장하지 않고 돌아갔다.
+- 한 줄 설명 한 항목만 임시 저장: PASS. `Missing or insufficient permissions` 없음, 관리자 최신값 재조회와 일반 사용자 화면 반영 확인, 원래 `문화시설`로 즉시 저장 복원 후 공개 화면 복원 확인.
+- favorites: 기존 2개 → `아우아우` 임시 추가 3개 → 재로그인 후 유지 PASS → 삭제 2개 → 재로그인 후 삭제 유지 PASS. 최종 상태/개수 원복 확인.
+- 콘솔에는 기존 favicon 404와 Google popup의 Cross-Origin-Opener-Policy 메시지만 있었고 Firestore permission 오류는 없었다.
+- 새 credential/custom token, Storage/Billing, Rules 우회, 추가 배포, PR/main merge는 수행하지 않았다.
 
 ## handoff
 
-bugfix 구현, live-shape 재현, 전체 회귀, Codex/agy 검증, Rules와 Firebase Hosting 운영 적용까지 완료했다. production 데이터 변경은 없었다. 연결 browser가 없어서 실제 Owner UI write/복원과 owner favorites 클릭만 수동 확인 대상으로 남는다.
+bugfix 구현, live-shape 재현, 전체 회귀, Codex/agy 검증, Rules와 Firebase Hosting 운영 적용, 실제 Owner browser 최종 E2E까지 완료했다. 임시 운영 Place/favorites 변경은 모두 테스트 전 상태로 복원했다. 코드 수정이나 재배포는 추가로 필요하지 않았고 Owner/Toby 최종 수락만 남았다.
