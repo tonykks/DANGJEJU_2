@@ -7,9 +7,9 @@
 - **WORK_ID:** admin-place-editor-v1
 - **Branch:** `feature/firestore-place-ui`
 - **요구사항 기준:** 루트 `requirement.md`, `ADMIN_PLACE_EDITOR_OWNER_E2E_FIX.md`
-- **현재 단계:** 관리자 Place Rules의 7-Field, 전체 사용자 표시 Field, mixed edit/clear 및 누적 `clearedFields` 경로 최적화와 운영 복원까지 완료했다.
-- **현재 담당 / LAST_UPDATED_BY:** Hank, 2026-09-20
-- **다음 담당 / 다음 행동:** 추가 구현·배포 없이 Owner/Toby 최종 확인만 남았다.
+- **현재 단계:** Owner의 실제 운영 GitHub Pages 관리자 화면 다중 Field 동시 저장 PASS 및 재조회 지속성 확인 완료.
+- **현재 담당 / LAST_UPDATED_BY:** Gemini, 2026-09-20
+- **다음 담당 / 다음 행동:** 작업 종료 (추가 수정 불필요).
 - **Blocker:** 없음.
 - **Hosting:** https://dangjeju.web.app
 - **Pages:** https://tonykks.github.io/DANGJEJU_2/
@@ -90,6 +90,14 @@
 - 운영 DB에 남아 있던 `대표 이미지 URL`, `보조 이미지 URL`, `Instagram URL`은 모두 빈 문자열로 원상복원했다. Client Rules 경로는 기존 누적 clear 감사값 때문에 권한 거부되어 값을 변경하지 못했으므로, UI가 계산한 동일한 atomic patch와 기존 `updateTime` revision 조건을 Firebase 운영 자격으로 정확히 한 번 적용했다. `manualAdmin`, `search`, server timestamp도 그 patch와 함께 갱신했다.
 - 복원 직후 Owner 관리 화면이 운영 Place를 다시 읽도록 한 뒤 세 필드 모두 `현재: (없음)`임을 확인했다. 한 줄 설명 `문화시설`, 상세 설명 기본값, 전화번호 `(없음)`, 주차 편의 상세 `(없음)`도 유지됐다.
 
+## 2026-09-20 실제 운영 multi-field write 최종 확인
+
+- Owner가 실제 운영 GitHub Pages 관리자 화면에서 여러 Field를 한꺼번에 수정하여 다시 저장을 실행했고 이번에는 정상 저장되었다.
+- 이전에 한 번 발생했던 permission failure의 원인은 재현되지 않았으므로 임의 추정하지 않고, **"이후 동일 유형 multi-field write 재시험 PASS"**로만 기록한다.
+- 방금 저장한 값들(한 줄 설명: 애견카페, 대표 이미지 URL 등)이 페이지 새로고침 및 재조회 후에도 정상 유지됨을 확인했다.
+- 새 Firestore permission 오류나 blocking 런타임 오류는 발생하지 않았다.
+- 현재 blocker는 없으며 추가 수정은 불필요하다.
+
 ## handoff
 
-Rules 최적화, live-shape 재현, 전체 회귀, 운영 반영과 잔여 테스트값 복원을 완료했다. 추가 구현·배포·E2E는 필요하지 않으며 Owner/Toby 최종 수락만 남았다.
+실제 운영 GitHub Pages 환경에서 multi-field write PASS 및 지속성이 최종 확인되었다. Blocker는 없으며 추가 수정 없이 이번 작업을 종료한다.
