@@ -12,7 +12,9 @@ import {
 
 export const CRUD_REGIONS = [['JEJU_CITY', '제주시'], ['SEOGWIPO_CITY', '서귀포시'], ['EAST', '동부'], ['WEST', '서부']];
 export const CRUD_CATEGORIES = [['ATTRACTION', '관광지'], ['CAFE', '카페'], ['FOOD', '음식점'], ['SHOPPING', '쇼핑'], ['STAY', '숙박'], ['LEISURE', '레포츠'], ['CULTURE', '문화시설'], ['EVENT', '축제·공연·행사']];
-const button = 'rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold disabled:opacity-40';
+const button = 'cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.98] active:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100';
+const toggleButton = 'cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.98] active:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 aria-pressed:border-slate-900 aria-pressed:bg-slate-900 aria-pressed:text-white aria-pressed:shadow-sm aria-pressed:hover:border-slate-800 aria-pressed:hover:bg-slate-800 aria-pressed:hover:text-white';
+const selectButton = 'cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 disabled:cursor-not-allowed disabled:opacity-40';
 const statusLabels: Record<PublicationResult['kind'], string> = {
   committed: '저장 완료', already: '이미 처리됨', confirmed: '현재 상태 확인됨', conflict: '충돌 — 다시 확인 필요',
   missing: '찾을 수 없음', unrestorable: '복원 근거 없음', failed: '실패', uncertain: '확인 필요', unattempted: '미시도',
@@ -57,7 +59,7 @@ export function AdminCreatePlace({ uid, Input, onClose, onCreated, onBusyChange 
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="rounded-xl border border-amber-500 bg-amber-500 px-3 py-2 text-sm font-bold text-white shadow-sm hover:bg-amber-600 disabled:opacity-40"
+          className="cursor-pointer rounded-xl border border-amber-500 bg-amber-500 px-3 py-2 text-sm font-bold text-white shadow-sm transition duration-150 hover:bg-amber-600 active:scale-[0.98] active:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
           disabled={busy || !!plan}
           onClick={() => void prepare()}
         >
@@ -78,7 +80,7 @@ export function AdminCreatePlace({ uid, Input, onClose, onCreated, onBusyChange 
       <button type="button" className={button} disabled={busy} onClick={onClose}>닫기</button>
       <button
         type="button"
-        className="rounded-xl border border-amber-500 bg-amber-500 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-amber-600 disabled:opacity-40"
+        className="cursor-pointer rounded-xl border border-amber-500 bg-amber-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition duration-150 hover:bg-amber-600 active:scale-[0.98] active:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
         disabled={busy || !!plan}
         onClick={() => void prepare()}
       >
@@ -159,11 +161,11 @@ export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: stri
   const labelFor = (options: string[][], value: unknown) => options.find(([key]) => key === value)?.[1] ?? String(value);
   return <section className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
     <div className="flex flex-wrap gap-2" role="group" aria-label="장소 상태">
-      {[false, true].map((hidden) => <button key={String(hidden)} className={button} aria-pressed={filter.hidden === hidden} disabled={!!controller.current} onClick={() => setFilter((current) => ({ ...current, hidden }))}>{hidden ? '삭제된 장소' : '정상 장소'}</button>)}
+      {[false, true].map((hidden) => <button key={String(hidden)} className={toggleButton} aria-pressed={filter.hidden === hidden} disabled={!!controller.current} onClick={() => setFilter((current) => ({ ...current, hidden }))}>{hidden ? '삭제된 장소' : '정상 장소'}</button>)}
     </div>
     <div className="flex flex-wrap gap-2">
-      <label className="text-sm">지역 <select aria-label="관리 지역" className={button} disabled={!!controller.current} value={filter.region} onChange={(e) => setFilter((f) => ({ ...f, region: e.target.value as AdminRegionFilter['region'] }))}><option value="UNKNOWN">지역 선택</option>{CRUD_REGIONS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-      <label className="text-sm">업종 <select aria-label="관리 업종" className={button} disabled={!!controller.current} value={filter.category} onChange={(e) => setFilter((f) => ({ ...f, category: e.target.value as AdminRegionFilter['category'] }))}><option value="UNKNOWN">업종 선택</option>{CRUD_CATEGORIES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+      <label className="text-sm">지역 <select aria-label="관리 지역" className={selectButton} disabled={!!controller.current} value={filter.region} onChange={(e) => setFilter((f) => ({ ...f, region: e.target.value as AdminRegionFilter['region'] }))}><option value="UNKNOWN">지역 선택</option>{CRUD_REGIONS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+      <label className="text-sm">업종 <select aria-label="관리 업종" className={selectButton} disabled={!!controller.current} value={filter.category} onChange={(e) => setFilter((f) => ({ ...f, category: e.target.value as AdminRegionFilter['category'] }))}><option value="UNKNOWN">업종 선택</option>{CRUD_CATEGORIES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
       <button className={button} disabled={busy} onClick={() => setAttempt((v) => v + 1)}>다시 조회</button>
     </div>
     <p className="text-xs text-slate-500">지역과 업종을 모두 선택해 주세요. 선택 대상은 조회된 목록 기준이며, 저장 전 변경 여부를 다시 확인합니다.</p>
@@ -178,7 +180,7 @@ export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: stri
     {!busy && !page.places.length && filter.region !== 'UNKNOWN' && filter.category !== 'UNKNOWN' && !error && <p className="text-sm">조건에 맞는 장소가 없습니다.</p>}
     <ul className="divide-y rounded-xl border">{page.places.map((place) => <li key={place.id} className="flex items-center gap-3 p-3">
       <input type="checkbox" aria-label={`${String(place.data.name)} 선택`} disabled={busy} checked={selected.has(place.id)} onChange={() => setSelected((old) => { const next = new Set(old); if (next.has(place.id)) next.delete(place.id); else next.add(place.id); return next; })} />
-      <button disabled={busy} className="min-w-0 flex-1 text-left" onClick={() => onEdit(place.id)}><strong className="block break-words text-sm">{String(place.data.name)}</strong><span className="text-xs text-slate-500">{String(place.data.address ?? '주소 미확인')} · {filter.hidden ? '삭제됨' : '정상'}</span></button>
+      <button disabled={busy} className="min-w-0 flex-1 cursor-pointer text-left transition duration-150 hover:opacity-80 active:scale-[0.99] disabled:cursor-not-allowed" onClick={() => onEdit(place.id)}><strong className="block break-words text-sm">{String(place.data.name)}</strong><span className="text-xs text-slate-500">{String(place.data.address ?? '주소 미확인')} · {filter.hidden ? '삭제됨' : '정상'}</span></button>
     </li>)}</ul>
     {page.hasMore && <button className={button} disabled={busy} onClick={() => void more()}>더 보기</button>}
     {outcomes.length > 0 && <div role="status" className="rounded-xl bg-slate-50 p-3">

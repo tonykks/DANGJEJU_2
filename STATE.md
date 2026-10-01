@@ -7,9 +7,9 @@
 - **WORK_ID:** place-crud-expansion-v1
 - **Branch:** `feature/firestore-place-ui`
 - **요구사항 기준:** `PLACE_CRUD_OWNER_REQUEST_20261001.md`, `GENI_PLACE_CRUD_UNDERSTANDING_20261001.md` Rev 1.1, `HANK_PLACE_CRUD_DESIGN_20261001.md`, `TODY_PLACE_CRUD_IMPLEMENTATION_20261001.md`, `ANY_PLACE_CRUD_VERIFICATION_20261001.md`, `FINAL_PLACE_CRUD_RESULT_20261001.md`, `PLACE_CRUD_LIVE_PRECHECK_20261002.md`, `PLACE_CRUD_LIVE_DEPLOY_RESULT_20261002.md`
-- **현재 단계:** **모든 작업 최종 완료 및 PASS**. 신규 복합 인덱스 3개 운영 배포 및 READY 전환 완료, `firestore.rules` 운영 배포 완료, Read-Only Smoke Test 100% PASS(32개 쿼리 오류 0건, missing-index 0건, permission 오류 0건). 신규 장소 등록 상단 sticky "등록 내용 확인" 버튼 추가(`730fe8c`) 및 GitHub Pages 자동 배포 확인 완료. 운영 데이터 2,126건 100% 불변 유지. Toby 최종 확인 대기.
+- **현재 단계:** **관리자 화면 버튼 시각 상태 UI 최소 개선 및 검증 완료**. Toggle 버튼(정상/삭제된 장소, 관리 방식 탭)은 기존 `aria-pressed` 상태를 기반으로 선택 시 진한 배경(`bg-slate-900`)과 흰 글자(`text-white`), 미선택 시 흰색/회색 계열로 명확히 구분. 일반 실행 버튼은 hover 배경 변화, active 시 눌림 효과(`scale-[0.98]`) 및 진한 색, transition 적용, 클릭 후 색상 미유지. "등록 내용 확인"·"변경 확인" 등 기존 강조색 유지. Firestore/Rules/Index/데이터 구조 무변경, lint/build/admin test 전수 PASS.
 - **현재 담당 / LAST_UPDATED_BY:** Geni, 2026-10-02
-- **다음 담당 / 다음 행동:** Owner가 Toby에게 최종 완료 보고를 전달.
+- **다음 담당 / 다음 행동:** feature/firestore-place-ui에 commit/push 후 GitHub Pages 자동 배포 확인.
 - **Blocker:** 없음.
 - **참여 Agent 및 모델:**
   - Hank: `gpt-6-astra` (설계 및 영향 분석)

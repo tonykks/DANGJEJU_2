@@ -93,7 +93,7 @@ export default function Header({
             <button
               id="admin-places-header-btn"
               onClick={onOpenAdmin}
-              className="flex items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-black text-amber-800 hover:bg-amber-100"
+              className="flex cursor-pointer items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-black text-amber-800 transition duration-150 hover:bg-amber-100 active:scale-95 active:bg-amber-200"
             >
               <Settings className="h-4 w-4" />
               <span>관리</span>

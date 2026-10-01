@@ -183,11 +183,11 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
           <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-amber-600" /><h2 className="text-xl font-black text-slate-900">장소 정보 관리</h2></div>
           <p className="mt-1 text-xs text-slate-500">장소를 등록하고 정보를 수정하거나, 지역별로 삭제·복원할 수 있습니다.</p>
         </div>
-        <button disabled={busy || crudBusy} onClick={onHome} className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><ArrowLeft className="h-4 w-4" />홈으로</button>
+        <button disabled={busy || crudBusy} onClick={onHome} className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs transition duration-150 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.98] active:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"><ArrowLeft className="h-4 w-4" />홈으로</button>
       </div>
 
       <nav aria-label="관리 방식" className="mb-4 flex flex-wrap gap-2">
-        {([['name', '업체명 검색'], ['region', '지역·업종 관리'], ['create', '새 장소 등록']] as const).map(([value, label]) => <button key={value} disabled={busy || crudBusy} aria-pressed={mode === value} onClick={() => { setMode(value); clearLoadedPlace(); setResults([]); setMessage(null); }} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold aria-pressed:bg-amber-100">{label}</button>)}
+        {([['name', '업체명 검색'], ['region', '지역·업종 관리'], ['create', '새 장소 등록']] as const).map(([value, label]) => <button key={value} disabled={busy || crudBusy} aria-pressed={mode === value} onClick={() => { setMode(value); clearLoadedPlace(); setResults([]); setMessage(null); }} className="cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.98] active:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 aria-pressed:border-slate-900 aria-pressed:bg-slate-900 aria-pressed:text-white aria-pressed:shadow-sm aria-pressed:hover:border-slate-800 aria-pressed:hover:bg-slate-800 aria-pressed:hover:text-white">{label}</button>)}
       </nav>
       {mode === 'create' && <AdminCreatePlace uid={uid} Input={EditorInput} onBusyChange={setCrudBusy} onClose={() => setMode('name')} onCreated={(id) => { setMode('name'); void selectPlace(id); }} />}
       {mode === 'region' && <AdminRegionManager onBusyChange={setCrudBusy} onEdit={(id) => void selectPlace(id)} />}
@@ -195,13 +195,13 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
         <form onSubmit={runSearch} className="flex gap-2">
           <label className="sr-only" htmlFor="admin-place-search">업체명 검색</label>
           <input id="admin-place-search" value={queryText} onChange={(event) => setQueryText(event.target.value)} maxLength={80} placeholder="업체명 접두어를 입력하세요" className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-amber-500" />
-          <button disabled={busy} aria-busy={busy} className="inline-flex cursor-pointer items-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"><Search className="h-4 w-4" />{busy ? '처리 중…' : '검색'}</button>
+          <button disabled={busy} aria-busy={busy} className="inline-flex cursor-pointer items-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.98] active:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"><Search className="h-4 w-4" />{busy ? '처리 중…' : '검색'}</button>
         </form>
         <p className="mt-2 text-[11px] text-slate-500">장소명이 입력한 글자로 시작하는 결과를 최대 {ADMIN_PLACE_QUERY_LIMIT}개 표시합니다. 삭제된 장소도 찾을 수 있습니다.</p>
         {results.length > 0 && (
           <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
             {results.map((document) => { const place = adaptPlace(document); return (
-              <li key={place.id}><button type="button" disabled={busy} onClick={() => void selectPlace(place.id)} className="w-full cursor-pointer px-3 py-3 text-left hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50">
+              <li key={place.id}><button type="button" disabled={busy} onClick={() => void selectPlace(place.id)} className="w-full cursor-pointer px-3 py-3 text-left transition duration-150 hover:bg-amber-50 active:scale-[0.99] active:bg-amber-100/60 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100">
                 <span className="block text-sm font-bold text-slate-900">{place.name} · {document.data.publicationStatus === 'HIDDEN' ? '삭제됨' : '정상'}</span>
                 <span className="mt-0.5 block text-xs text-slate-500">{place.id} · {place.roadAddress || place.address || '주소 미확인'} · {place.category}</span>
               </button></li>
@@ -251,7 +251,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
 
           <div className="sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
             <div aria-live="polite" className="min-w-0 flex-1">{actionError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800">{actionError}</p>}</div>
-            <button disabled={busy || selected.size === 0} aria-busy={busy} onClick={prepareConfirmation} className="cursor-pointer rounded-xl bg-amber-500 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{busy ? '처리 중…' : '변경 확인'}</button>
+            <button disabled={busy || selected.size === 0} aria-busy={busy} onClick={prepareConfirmation} className="cursor-pointer rounded-xl bg-amber-500 px-4 py-2 text-sm font-black text-white shadow-sm transition duration-150 hover:bg-amber-600 active:scale-[0.98] active:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100">{busy ? '처리 중…' : '변경 확인'}</button>
           </div>
         </section>
       )}
@@ -266,7 +266,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
             </ul>
             <AdminUnchangedSelectionNotice selections={plan.unchangedSelections} />
             {actionError && <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{actionError}</div>}
-            <div className="mt-5 flex justify-end gap-2"><button onClick={() => { setPlan(null); setActionError(null); }} disabled={busy} className="cursor-pointer rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">돌아가기</button><button onClick={() => void save()} disabled={busy} aria-busy={busy} className="inline-flex cursor-pointer items-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{busy ? '저장 중…' : '확인하고 저장'}</button></div>
+            <div className="mt-5 flex justify-end gap-2"><button onClick={() => { setPlan(null); setActionError(null); }} disabled={busy} className="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-xs transition duration-150 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.98] active:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100">돌아가기</button><button onClick={() => void save()} disabled={busy} aria-busy={busy} className="inline-flex cursor-pointer items-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.98] active:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"><CheckCircle2 className="h-4 w-4" />{busy ? '저장 중…' : '확인하고 저장'}</button></div>
           </section>
         </div>
       )}
