@@ -4,13 +4,13 @@
 
 ## 현재
 
-- **WORK_ID:** admin-place-editor-v1
+- **WORK_ID:** place-crud-expansion-v1
 - **Branch:** `feature/firestore-place-ui`
-- **요구사항 기준:** 루트 `requirement.md`, `ADMIN_PLACE_EDITOR_OWNER_E2E_FIX.md`
-- **현재 단계:** Owner의 실제 운영 GitHub Pages 관리자 화면 다중 Field 동시 저장 PASS 및 재조회 지속성 확인 완료.
-- **현재 담당 / LAST_UPDATED_BY:** Gemini, 2026-09-20
-- **다음 담당 / 다음 행동:** 작업 종료 (추가 수정 불필요).
-- **Blocker:** 없음.
+- **요구사항 기준:** `PLACE_CRUD_OWNER_REQUEST_20261001.md`, `GENI_PLACE_CRUD_UNDERSTANDING_20261001.md` Rev 1.1, `HANK_PLACE_CRUD_DESIGN_20261001.md`
+- **현재 단계:** Hank(`gpt-6-astra`)의 설계 및 영향 분석 완료, Geni 승인 완료 (`HANK_PLACE_CRUD_DESIGN_20261001.md` GitHub 반영). Tody(`gpt-6-astra`) 구현 단계에서 OpenAI 사용량 한도 발생으로 Owner 크레딧 충전/한도 해제 후 재개 대기 중.
+- **현재 담당 / LAST_UPDATED_BY:** Geni, 2026-10-01
+- **다음 담당 / 다음 행동:** Owner의 OpenAI 크레딧/한도 해제 완료 후 Tody(`gpt-6-astra`) 구현 시작 및 Annie 독립 검증 진행.
+- **Blocker:** OpenAI 계정 사용량 한도 (충전 후 즉시 해소 예정).
 - **Hosting:** https://dangjeju.web.app
 - **Pages:** https://tonykks.github.io/DANGJEJU_2/
 - **Firebase CLI session:** 이번 Rules/Hosting 재배포에만 Owner 로그인을 사용했다. 마지막에 공식 `firebase logout`으로 OAuth revoke 200을 받았고, CLI config의 user/tokens 부재와 active/additional account 0개를 민감값 없이 확인했다.
