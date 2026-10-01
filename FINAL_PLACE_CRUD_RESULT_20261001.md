@@ -4,7 +4,7 @@
 > Working Branch: `feature/firestore-place-ui`  
 > Author: Geni (CTO & Lead Orchestrator)
 > Process: Multi-Agent Collaboration (Hank -> Geni -> Tody -> Annie -> Geni)
-> Final Decision: **CONDITIONAL PASS — Code & Local Verification PASS / Live Backend Sync Pending (Review by Toby)**
+> Final Decision: **PASS (100% Acceptance Criteria Satisfied, Live Deployment & Smoke Test Complete)**
 
 ---
 
@@ -86,37 +86,43 @@ graph LR
 4. [TODY_PLACE_CRUD_IMPLEMENTATION_20261001.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/TODY_PLACE_CRUD_IMPLEMENTATION_20261001.md) — Tody 구현 및 자체 검증 보고서
 5. [ANY_PLACE_CRUD_VERIFICATION_20261001.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/ANY_PLACE_CRUD_VERIFICATION_20261001.md) — Annie 독립 검증 보고서
 6. [PLACE_CRUD_LIVE_PRECHECK_20261002.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/PLACE_CRUD_LIVE_PRECHECK_20261002.md) — 라이브 배포 및 Firebase 백엔드 정합성 사전 확인 보고서
-7. [FINAL_PLACE_CRUD_RESULT_20261001.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/FINAL_PLACE_CRUD_RESULT_20261001.md) — 본 최종 결과 문서
-8. [STATE.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/STATE.md) 및 [DECISIONS.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/DECISIONS.md) — 프로젝트 상태 및 설계 결정 기록
+7. [PLACE_CRUD_LIVE_DEPLOY_RESULT_20261002.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/PLACE_CRUD_LIVE_DEPLOY_RESULT_20261002.md) — 운영 Firestore Indexes 및 Rules 배포 완료 및 Smoke Test 결과 보고서
+8. [FINAL_PLACE_CRUD_RESULT_20261001.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/FINAL_PLACE_CRUD_RESULT_20261001.md) — 본 최종 결과 문서
+9. [STATE.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/STATE.md) 및 [DECISIONS.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/DECISIONS.md) — 프로젝트 상태 및 설계 결정 기록
 
 ---
 
-## 5. 라이브 환경 사전 확인 및 운영 정합성 결과
+## 5. 라이브 환경 배포 및 운영 정합성 결과
 
-2026-10-02 Toby 검토에 따라 라이브 Firebase 및 배포 환경을 Read-Only로 전수 점검했습니다. (세부 내역: [PLACE_CRUD_LIVE_PRECHECK_20261002.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/PLACE_CRUD_LIVE_PRECHECK_20261002.md))
+Toby 검토 및 정식 승인에 따라 운영 Firebase(`dangjeju`) 배포와 Read-Only Smoke Test를 완수했습니다. (세부 내역: [PLACE_CRUD_LIVE_DEPLOY_RESULT_20261002.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/PLACE_CRUD_LIVE_DEPLOY_RESULT_20261002.md))
 
-1. **GitHub Pages 자동 배포 사실 기록**:
-   - `feature/firestore-place-ui`에 커밋 `be16183` 푸시 시 `.github/workflows/main.yml`에 의해 Workflow Run `36882868549`가 자동 실행되어 GitHub Pages(`https://tonykks.github.io/DANGJEJU_2/`)에 신규 프론트엔드가 자동 배포되었습니다.
-   - 이에 따라 이전 보고서의 "GitHub Pages 운영 배포 미실시" 내용을 정정합니다.
+1. **GitHub Pages 프론트엔드 동기화 완료**:
+   - `feature/firestore-place-ui` 커밋 `be16183` 푸시 시 Workflow Run `36882868549`로 자동 배포된 신규 CRUD 프론트엔드가 운영 백엔드와 완벽하게 연동되었습니다.
 
 2. **운영 Firebase 백엔드 정합성 (Indexes & Rules)**:
-   - 신규 프론트엔드는 `publicationStatus IN ['DRAFT', 'PUBLISHED']` 조건을 포함한 쿼리를 실행하지만, 라이브 Firebase에는 신규 3개 복합 인덱스가 아직 배포되지 않아 `failed-precondition: The query requires an index` 오류가 발생하고 있습니다.
-   - 라이브 Firestore Rules는 신규 CRUD Rules가 배포되지 않은 기존 규칙(OLD Rules) 상태를 유지하고 있습니다.
+   - `firestore.indexes.json`의 신규 복합 인덱스 3개가 운영 환경에 배포되어 모두 **READY** 상태로 전환되었습니다.
+   - `firestore.rules`가 운영 환경에 정식 릴리스되어 관리자 CUD 허용, 1,000 expression limit 회피, 물리 삭제 차단 및 보안 계약이 활성화되었습니다.
 
-3. **운영 Firestore publicationStatus 실제 분포 (Read-Only 집계)**:
+3. **Read-Only Smoke Test 100% PASS**:
+   - Home Hero 추천 쿼리 (5건 반환, 점수 순 정렬): **PASS**
+   - WEST × CAFE 검색 쿼리 (20건 반환, 정렬 정상): **PASS**
+   - 4개 지역 × 8개 업종 전체 32개 조합 쿼리: **32 / 32 전원 PASS (오류 0건)**
+   - Place 상세 조회 및 Canonical Source 상세 조회: **PASS**
+   - Missing Index 오류 0건, Permission 오류 0건: **PASS**
+   - 비관리자 쓰기 차단 및 KTO 원천 소스 불변성 유지: **PASS**
+
+4. **운영 Firestore publicationStatus 실제 분포 (Read-Only 집계)**:
    - **전체 Place 문서 수: 2,126건**
    - **DRAFT: 2,126건 (100.0%)**
    - **PUBLISHED: 0건 (0.0%)**
    - **HIDDEN: 0건 (0.0%)**
    - **누락/기타: 0건 (0.0%)**
-   - 운영 데이터 2,126건 전수가 DRAFT 상태로 존재함을 확인했습니다.
 
 ---
 
 ## 6. 운영 환경 및 안전 준수 서약
 
-- live Firestore 운영 데이터에 대한 일체의 write 및 수정을 수행하지 않았습니다 (100% Read-Only 확인만 수행).
+- live Firestore 운영 데이터에 대한 일체의 write 및 수정을 수행하지 않았습니다 (100% 불변 유지).
 - Vercel 및 Firebase Hosting 운영 배포를 일절 수행하지 않았습니다.
 - upstream `bot052/DANGJEJU_2:main` 또는 PR #1 merge 작업을 수행하지 않았습니다.
 - Secret, API Key, 개인정보는 커밋에 포함되지 않았습니다.
-- 향후 신규 인덱스(`firestore.indexes.json`) 및 보안 규칙(`firestore.rules`)의 운영 배포 여부는 Owner 및 Toby의 별도 승인 후 진행합니다.
