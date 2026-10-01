@@ -2,9 +2,9 @@
 
 > Repository: `tonykks/DANGJEJU_2`  
 > Working Branch: `feature/firestore-place-ui`  
-> Author: Geni (CTO & Lead Orchestrator)  
-> Process: Multi-Agent Collaboration (Hank -> Geni -> Tody -> Annie -> Geni)  
-> Final Decision: **PASS (100% Acceptance Criteria Satisfied)**  
+> Author: Geni (CTO & Lead Orchestrator)
+> Process: Multi-Agent Collaboration (Hank -> Geni -> Tody -> Annie -> Geni)
+> Final Decision: **CONDITIONAL PASS — Code & Local Verification PASS / Live Backend Sync Pending (Review by Toby)**
 
 ---
 
@@ -85,14 +85,38 @@ graph LR
 3. [HANK_PLACE_CRUD_DESIGN_20261001.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/HANK_PLACE_CRUD_DESIGN_20261001.md) — Hank 설계 및 영향 분석 (Geni 승인)
 4. [TODY_PLACE_CRUD_IMPLEMENTATION_20261001.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/TODY_PLACE_CRUD_IMPLEMENTATION_20261001.md) — Tody 구현 및 자체 검증 보고서
 5. [ANY_PLACE_CRUD_VERIFICATION_20261001.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/ANY_PLACE_CRUD_VERIFICATION_20261001.md) — Annie 독립 검증 보고서
-6. [FINAL_PLACE_CRUD_RESULT_20261001.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/FINAL_PLACE_CRUD_RESULT_20261001.md) — 본 최종 결과 문서
-7. [STATE.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/STATE.md) 및 [DECISIONS.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/DECISIONS.md) — 프로젝트 상태 및 설계 결정 기록
+6. [PLACE_CRUD_LIVE_PRECHECK_20261002.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/PLACE_CRUD_LIVE_PRECHECK_20261002.md) — 라이브 배포 및 Firebase 백엔드 정합성 사전 확인 보고서
+7. [FINAL_PLACE_CRUD_RESULT_20261001.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/FINAL_PLACE_CRUD_RESULT_20261001.md) — 본 최종 결과 문서
+8. [STATE.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/STATE.md) 및 [DECISIONS.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/DECISIONS.md) — 프로젝트 상태 및 설계 결정 기록
 
 ---
 
-## 5. 운영 환경 및 안전 준수 서약
+## 5. 라이브 환경 사전 확인 및 운영 정합성 결과
 
-- live Firestore 운영 데이터의 무단 변경을 일절 수행하지 않았습니다.
-- Vercel, Firebase Hosting, GitHub Pages 운영 배포를 일절 수행하지 않았습니다.
+2026-10-02 Toby 검토에 따라 라이브 Firebase 및 배포 환경을 Read-Only로 전수 점검했습니다. (세부 내역: [PLACE_CRUD_LIVE_PRECHECK_20261002.md](file:///c:/Users/김광수/Desktop/DANGJEJU_2/PLACE_CRUD_LIVE_PRECHECK_20261002.md))
+
+1. **GitHub Pages 자동 배포 사실 기록**:
+   - `feature/firestore-place-ui`에 커밋 `be16183` 푸시 시 `.github/workflows/main.yml`에 의해 Workflow Run `36882868549`가 자동 실행되어 GitHub Pages(`https://tonykks.github.io/DANGJEJU_2/`)에 신규 프론트엔드가 자동 배포되었습니다.
+   - 이에 따라 이전 보고서의 "GitHub Pages 운영 배포 미실시" 내용을 정정합니다.
+
+2. **운영 Firebase 백엔드 정합성 (Indexes & Rules)**:
+   - 신규 프론트엔드는 `publicationStatus IN ['DRAFT', 'PUBLISHED']` 조건을 포함한 쿼리를 실행하지만, 라이브 Firebase에는 신규 3개 복합 인덱스가 아직 배포되지 않아 `failed-precondition: The query requires an index` 오류가 발생하고 있습니다.
+   - 라이브 Firestore Rules는 신규 CRUD Rules가 배포되지 않은 기존 규칙(OLD Rules) 상태를 유지하고 있습니다.
+
+3. **운영 Firestore publicationStatus 실제 분포 (Read-Only 집계)**:
+   - **전체 Place 문서 수: 2,126건**
+   - **DRAFT: 2,126건 (100.0%)**
+   - **PUBLISHED: 0건 (0.0%)**
+   - **HIDDEN: 0건 (0.0%)**
+   - **누락/기타: 0건 (0.0%)**
+   - 운영 데이터 2,126건 전수가 DRAFT 상태로 존재함을 확인했습니다.
+
+---
+
+## 6. 운영 환경 및 안전 준수 서약
+
+- live Firestore 운영 데이터에 대한 일체의 write 및 수정을 수행하지 않았습니다 (100% Read-Only 확인만 수행).
+- Vercel 및 Firebase Hosting 운영 배포를 일절 수행하지 않았습니다.
 - upstream `bot052/DANGJEJU_2:main` 또는 PR #1 merge 작업을 수행하지 않았습니다.
 - Secret, API Key, 개인정보는 커밋에 포함되지 않았습니다.
+- 향후 신규 인덱스(`firestore.indexes.json`) 및 보안 규칙(`firestore.rules`)의 운영 배포 여부는 Owner 및 Toby의 별도 승인 후 진행합니다.

@@ -6,18 +6,19 @@
 
 - **WORK_ID:** place-crud-expansion-v1
 - **Branch:** `feature/firestore-place-ui`
-- **요구사항 기준:** `PLACE_CRUD_OWNER_REQUEST_20261001.md`, `GENI_PLACE_CRUD_UNDERSTANDING_20261001.md` Rev 1.1, `HANK_PLACE_CRUD_DESIGN_20261001.md`, `TODY_PLACE_CRUD_IMPLEMENTATION_20261001.md`, `ANY_PLACE_CRUD_VERIFICATION_20261001.md`, `FINAL_PLACE_CRUD_RESULT_20261001.md`
-- **현재 단계:** 다자간 Agent 협업 완료 (Hank 설계 승인 -> Tody 구현 완료 -> Annie 독립 검증 전수 PASS -> Geni 최종 통합 완료). 21개 Acceptance Criteria 100% 충족. GitHub 원격 반영 완료.
-- **현재 담당 / LAST_UPDATED_BY:** Geni, 2026-10-01
-- **다음 담당 / 다음 행동:** Owner가 완료 보고서를 확인하고 Toby에게 결과를 전달.
-- **Blocker:** 없음.
+- **요구사항 기준:** `PLACE_CRUD_OWNER_REQUEST_20261001.md`, `GENI_PLACE_CRUD_UNDERSTANDING_20261001.md` Rev 1.1, `HANK_PLACE_CRUD_DESIGN_20261001.md`, `TODY_PLACE_CRUD_IMPLEMENTATION_20261001.md`, `ANY_PLACE_CRUD_VERIFICATION_20261001.md`, `FINAL_PLACE_CRUD_RESULT_20261001.md`, `PLACE_CRUD_LIVE_PRECHECK_20261002.md`
+- **현재 단계:** GitHub Pages 자동 배포(Run 36882868549, commit `be16183`) 및 운영 Firebase Read-Only 사전 점검 완료. 운영 백엔드의 신규 복합 인덱스 미배포로 인한 `missing index` 상태 확인. Toby 검토 대기.
+- **현재 담당 / LAST_UPDATED_BY:** Geni, 2026-10-02
+- **다음 담당 / 다음 행동:** Toby가 사전 확인 결과(`PLACE_CRUD_LIVE_PRECHECK_20261002.md`)를 검토하고 운영 백엔드 배포(Indexes/Rules) 승인 여부 결정.
+- **Blocker:** 없음 (운영 Indexes/Rules 배포 승인 판단 대기).
 - **참여 Agent 및 모델:**
   - Hank: `gpt-6-astra` (설계 및 영향 분석)
   - Geni: CTO & Lead Orchestrator (설계 승인, 최종 통합)
   - Tody: `gpt-6-astra` (코드 구현 및 자체 검증)
   - Annie: `gemini-3.8-flash-high` (독립 검증 및 판정 PASS)
 - **Hosting:** https://dangjeju.web.app (운영 배포 미실시)
-- **Pages:** https://tonykks.github.io/DANGJEJU_2/ (운영 배포 미실시)
+- **Pages:** https://tonykks.github.io/DANGJEJU_2/ (commit `be16183` 자동 배포 완료, 라이브 missing-index 확인)
+- **Live publicationStatus 확인 결과 (Read-Only):** 전체 2,126건 전수 DRAFT (DRAFT 2,126, PUBLISHED 0, HIDDEN 0, 누락 0)
 
 ## 이번 결함의 정확한 원인과 수정
 
