@@ -2,9 +2,10 @@
 
 > Repository: `tonykks/DANGJEJU_2`  
 > Working Branch: `feature/firestore-place-ui`  
-> Author: Geni (Antigravity Native Agent)  
-> Target Document: `PLACE_CRUD_OWNER_REQUEST_20261001.md`  
-> Reviewer: Toby  
+> Author: Geni (Antigravity Native Agent)
+> Target Document: `PLACE_CRUD_OWNER_REQUEST_20261001.md`
+> Reviewer: Toby
+> Status: Revision 1.1 (Toby 피드백 반영 완료)
 
 ---
 
@@ -39,7 +40,8 @@
    - `publicationStatus`를 포함한 복합 인덱스는 아직 없음.
 
 5. **기존 데이터의 `publicationStatus` 현황**:
-   - `tools/firestore_place_pilot_import/import_pilot.py` 및 풀 임포트 기준으로 모든 기존 Place의 `publicationStatus`는 초기값인 `"DRAFT"`로 저장되어 서비스되고 있음.
+   - 과거 Import 도구(`tools/firestore_place_pilot_import/import_pilot.py` 등)의 스크립트상 초기값은 `DRAFT`로 기재되어 있었으나, **실제 운영 Firestore 내 2,126건의 현재 `publicationStatus` 분포는 아직 미확인 상태**입니다.
+   - 모두 `DRAFT`라고 예단하지 않으며, **Hank가 설계 단계에서 read-only로 실제 운영 데이터 분포를 먼저 확인**하도록 합니다.
 
 ---
 
@@ -70,7 +72,7 @@
   - `source`: `OWNER_INPUT`으로 설정.
   - `primarySourceId`: 생성된 `sourceId` 자동 연결.
   - `search.*`: `searchDerivation` 로직을 통해 지역, 장소유형, 기본점수, 펫점수, 펫티어, 정렬키, inputHash 등 자동 계산.
-  - `audit / provenance`: 생성 시각, 수정 시각, 관리자 식별자 등 안전 처리.
+  - `audit / provenance`: **공개 Place 및 Source 문서에는 관리자 UID나 개인정보성 관리자 식별자를 절대 저장하지 않으며**, 기존 `manualAdmin`의 audit/provenance 원칙(`source: ADMIN_UI`, 서버 타임스탬프, 변경 필드 목록 등)을 철저히 준수하여 자동 생성.
 - 생성 즉시 일반 사용자 화면(검색, 카드, 지도, 상세, 찜)에서 정상 노출 및 상호작용 가능.
 
 ### 4.2 관리자 조회 (Read)
@@ -95,12 +97,13 @@
 ### 4.5 삭제된 장소 관리 및 복원 (Restore)
 - 관리자 화면에서 '삭제된 장소(`publicationStatus == HIDDEN`)' 탭/뷰 분리 제공.
 - 삭제된 장소 화면에서도 지역×업종 필터 및 다중 체크박스 선택 지원.
-- `[선택 장소 복원]` 실행 시 일괄로 원래 상태(예: `DRAFT`)로 복원.
+- `[선택 장소 복원]` 실행 시: **무조건 특정 값(DRAFT 등)으로 고정하지 않고, 삭제 직전의 원래 `publicationStatus`로 정확히 복원**.
 - 복원 완료/실패 건수 명확히 피드백.
 - 복원 후 일반 사용자 화면 및 찜 목록에 즉시 재노출.
 
 ### 4.6 일괄 처리 안정성
-- 다중 선택 시 Firestore 배치 제한(최대 500개) 및 네트워크 안정성을 고려하여 안전한 chunk 단위 트랜잭션/배치 처리.
+- 다중 선택 시 Firestore 배치 제한(최대 500개) 및 네트워크 안정성을 고려하여 안전한 일괄 처리 전략 수립.
+- 구체적인 chunk 크기 및 배치 실행 방식은 **Hank가 실제 데이터, Rules, 네트워크 제약을 검토하여 최적안을 결정**.
 - 부분 실패 시 성공 건수와 실패 건수를 명확히 보고.
 
 ---
@@ -108,29 +111,31 @@
 ## 5. 하지 않을 일 (Explicit Non-Goals)
 
 1. **DB Schema 전면 재설계 금지**: 기존 설계된 필드 구조를 그대로 사용하며 불필요한 필드를 증설하지 않음.
-2. **`deleted=true/false` 별도 필드 신설 금지**: 기존 스키마에 존재하는 `publicationStatus`를 Soft Delete 상태로 전용.
-3. **불필요한 2,126건 전체 마이그레이션 금지**: 기존 문서를 전수 수정하지 않음.
-4. **Firestore Document 물리 삭제 금지**: Rules와 클라이언트 코드 양쪽에서 `delete`는 `false`로 유지.
-5. **KTO 원본 Source 수정 금지**: 기존 KTO 출처 문서는 immutable 보존.
-6. **전체 Catalog 클라이언트 선로딩 복원 금지**: Query-first 원칙 고수.
-7. **중복 데이터 컬렉션(`listView` 등) 신설 금지**.
-8. **관리자에게 내부 기술값(ID, 해시, 점수 등) 수동 입력 요구 금지**.
-9. **승인 없는 외부 운영 배포 금지**: Owner의 별도 승인 전 PR merge, main merge, Firebase Hosting/GitHub Pages 운영 배포 금지.
+2. **`deleted=true/false` 별도 필드 신설 금지**: 기존 스키마에 존재하는 `publicationStatus`를 Soft Delete 상태 관리에 사용.
+3. **새로운 publicationStatus (`ACTIVE` 등) 추가 금지**: 기존 Schema의 `DRAFT` / `PUBLISHED` / `HIDDEN`만 사용.
+4. **불필요한 2,126건 전체 마이그레이션 금지**: 기존 문서를 전수 수정하지 않음.
+5. **Firestore Document 물리 삭제 금지**: Rules와 클라이언트 코드 양쪽에서 `delete`는 `false`로 유지.
+6. **KTO 원본 Source 수정 금지**: 기존 KTO 출처 문서는 immutable 보존.
+7. **전체 Catalog 클라이언트 선로딩 복원 금지**: Query-first 원칙 고수.
+8. **중복 데이터 컬렉션(`listView` 등) 신설 금지**.
+9. **관리자에게 내부 기술값(ID, 해시, 점수 등) 수동 입력 요구 금지**.
+10. **공개 Place/Source 문서에 관리자 UID 또는 개인정보성 식별자 저장 금지**.
+11. **승인 없는 외부 운영 배포 금지**: Owner의 별도 승인 전 PR merge, main merge, Firebase Hosting/GitHub Pages 운영 배포 금지.
 
 ---
 
 ## 6. DB Schema 재설계 여부
 
 - **결론: 재설계하지 않음.**
-- 초기 설계(`DB_SCHEMA_DESIGN_TASK.md`)에 이미 정의된 `publicationStatus`와 `OWNER_INPUT` Source 체계, `adminOverrides`, `manualAdmin` 구조를 완벽히 수용하여 구현합니다.
+- 초기 설계(`DB_SCHEMA_DESIGN_TASK.md`)에 이미 정의된 `publicationStatus`(`DRAFT`, `PUBLISHED`, `HIDDEN`)와 `OWNER_INPUT` Source 체계, `adminOverrides`, `manualAdmin` 구조를 그대로 사용합니다.
 
 ---
 
 ## 7. publicationStatus 사용 원칙
 
-- **정상 노출 상태**: 현재 기존 데이터의 기본값인 `"DRAFT"` (또는 향후 명시적 `"ACTIVE"` 확정 시 해당 값).
+- **허용 상태값**: 기존 Schema에 정의된 **`DRAFT` / `PUBLISHED` / `HIDDEN`** 3가지만 사용하며, `ACTIVE` 같은 새로운 상태는 만들지 않습니다.
 - **삭제(숨김) 상태**: `"HIDDEN"`.
-- **복원 시**: `"HIDDEN"`에서 삭제 직전의 정상 노출 상태(`"DRAFT"`)로 원복.
+- **복원(Restore) 시**: 무조건 `DRAFT`로 변경하지 않고, **삭제 직전의 원래 `publicationStatus`로 정확히 복원**.
 - **일반 화면 필터링**: 일반 사용자가 조회하는 모든 경로(검색 쿼리, 지도, 상세, 찜)에서 `publicationStatus === "HIDDEN"`인 문서는 철저히 차단.
 
 ---
@@ -140,7 +145,9 @@
 - **KTO 데이터**: `source: "KTO"`, immutable 유지.
 - **신규 관리자 데이터**: `source: "OWNER_INPUT"`.
   - 서브컬렉션: `places/{placeId}/sources/{sourceId}`에 `OWNER_INPUT` 소스 도큐먼트 기록.
-  - 필수 키: `placeSourceId`, `placeId`, `source: "OWNER_INPUT"`, `sourceUpdatedAt`, `verifiedAt`, `verificationStatus: "ADMIN_CONFIRMED"`, `adminInput` 정보 보존.
+  - 필수 키: `placeSourceId`, `placeId`, `source: "OWNER_INPUT"`, `sourceUpdatedAt`, `verifiedAt`, `verificationStatus` 등.
+  - **주의**: `verificationStatus`에 `ADMIN_CONFIRMED`를 사용하지 않음 (PetInformationStatus의 `ADMIN_CONFIRMED`와 혼동하지 말 것). OWNER_INPUT Source의 `verificationStatus`는 **기존 Schema를 확인한 뒤 Hank가 설계 단계에서 결정**.
+  - **개인정보 보호**: 공개 Place 및 Source 문서에는 관리자 UID나 개인정보성 식별자를 절대 저장하지 않으며, 기존 감사/출처 원칙을 유지.
   - 내부 기술값은 프로그램이 자동 생성 및 무결성 보장.
 
 ---
@@ -159,10 +166,10 @@
 
 1. **Place Create**:
    - `match /places/{placeId}`에서 `allow create: if isActiveAdmin() && validPlaceCreate(placeId);` 허용 필요.
-   - `validPlaceCreate`: 필수 필드 구조, `OWNER_INPUT` Source 일치 여부, 기본 `publicationStatus`, `search.*` 파생 필드 유효성, `updatedAt == request.time` 검증.
+   - `validPlaceCreate`: 필수 필드 구조, `OWNER_INPUT` Source 일치 여부, 유효한 `publicationStatus`, `search.*` 파생 필드 유효성, `updatedAt == request.time` 검증.
 2. **Place Update (Soft Delete / Restore)**:
    - `publicationStatus` 변경이 `validPlaceUpdate`에 안전하게 포함되도록 Rules 업데이트.
-   - 일반 필드 수정과 Soft Delete(`publicationStatus -> HIDDEN`) 및 Restore(`HIDDEN -> DRAFT`)의 상태 전이 규칙 검증.
+   - 일반 필드 수정과 Soft Delete(`publicationStatus -> HIDDEN`) 및 Restore(`HIDDEN -> 삭제 직전 publicationStatus`)의 상태 전이 규칙 검증.
 3. **Source Write**:
    - `match /places/{placeId}/sources/{sourceId}`에서 `allow create: if isActiveAdmin() && request.resource.data.source == 'OWNER_INPUT' && validOwnerInputSource(placeId, sourceId);` 형태로 최소 허용.
    - 기존 KTO Source에 대한 수정/삭제는 계속 `allow write: if false;`로 차단.
@@ -180,10 +187,8 @@
   - `where('search.region', '==', region)`
   - `where('search.category', '==', category)`
   - `orderBy('search.petSortKey', 'desc')`
-- 여기에 `publicationStatus` 조건을 결합할 경우:
-  - 방법 A: Firestore 쿼리 조건에 `where('publicationStatus', '!=', 'HIDDEN')` 또는 `where('publicationStatus', '==', 'DRAFT')`를 추가하는 경우 -> 새 Composite Index 필요 (`firestore.indexes.json`에 추가 및 빌드).
-  - 방법 B: 관리자용 삭제 조회 `where('publicationStatus', '==', 'HIDDEN')`에 대한 인덱스 필요 여부 검토.
-- Hank 설계 단계에서 인덱스 수용 한도, 쿼리 비용, 쿼리-인덱스 조합을 엄밀히 분석하여 최적안 확정 예정.
+- `publicationStatus != HIDDEN` 등 특정 쿼리 방식을 미리 단정하지 않음.
+- 일반 사용자 쿼리 및 관리자 삭제 목록 조회에서 `publicationStatus`를 처리하는 최적 방식(Firestore 쿼리 레벨 필터링과 새 Composite Index 생성 여부 등)은 **Hank가 실제 데이터 분포, Rules, Index 제약을 종합 검토하여 최적안을 결정**.
 
 ---
 
@@ -250,8 +255,8 @@
 | 잠재 위험 | 대응 방안 |
 |---|---|
 | **Firestore Rules 표현식 1000개 한도 초과** | 신규 Create/Update 규칙 추가 시 중복 평가를 최소화하고, helper 함수 분리 및 조건문 단락 평가(short-circuit) 최적화 적용. Emulator를 통해 엄밀히 검증. |
-| **복합 인덱스 변경에 따른 쿼리 차단** | `publicationStatus` 필터가 복합 인덱스에 미치는 영향을 사전에 검토하고, 인덱스 빌드 전 쿼리 실패가 없도록 안전한 쿼리 설계. |
-| **다중 일괄 처리 시 Quota 및 Batch 한도** | Firestore의 500개 write 한도를 고려하여 20~30개 단위 chunk 처리 및 트랜잭션 에러 복구/보고 로직 구현. |
+| **복합 인덱스 변경에 따른 쿼리 차단** | `publicationStatus` 필터 방식과 인덱스 영향을 Hank가 사전에 면밀히 검토하고, 인덱스 빌드 전 쿼리 실패가 없도록 안전한 쿼리 설계. |
+| **다중 일괄 처리 시 Quota 및 Batch 한도** | Firestore의 일괄 쓰기 한도 및 지연 시간을 감안하여 Hank의 설계에 따라 최적의 chunk 단위 배치 및 에러 복구/보고 로직 구현. |
 | **Agent 역할 분리 미준수 위험** | Geni가 임의로 Hank/Tody/Annie 역할을 단독 수행하지 않고, 각 단계별로 지정된 도구와 모델(`gpt-6-astra`, `Gemini`)을 호출하여 독립적 산출물과 검증을 확보. |
 
 ---
@@ -259,15 +264,15 @@
 ## 16. Owner 판단이 추가로 필요한 사항 유무
 
 - **현재 시점: 없음.**
-- `PLACE_CRUD_OWNER_REQUEST_20261001.md`에 목적, 배경, 제약조건, 승인 범위가 매우 명확하게 정의되어 있으므로 불필요한 질의로 작업을 지연시키지 않습니다.
-- 세부적인 기술 구현 상세(인덱스 설계 최적화 등)는 다음 단계인 Hank의 설계 문서(`HANK_PLACE_CRUD_DESIGN_20261001.md`)에서 구체화한 후 Geni가 Owner 요구사항과 대조하여 엄격히 검토하겠습니다.
+- Toby의 검토 피드백 5가지(실제 데이터 분포 확인 원칙, ACTIVE 미도입 및 정확한 복원, verificationStatus 스키마 준수, 관리자 식별자 미저장 원칙, 쿼리/배치 방식의 Hank 설계 위임)를 모두 정확히 반영하여 이해 문서를 개정했습니다.
+- 세부적인 기술 구현 상세는 다음 단계인 Hank의 설계 문서(`HANK_PLACE_CRUD_DESIGN_20261001.md`)에서 구체화한 후 Geni가 Owner 요구사항과 대조하여 엄격히 검토하겠습니다.
 
 ---
 
 ## 17. 다음 협업 진행 단계
 
-1. **현재 완료**: Geni 요구사항 분석 및 이해 문서 작성 (`GENI_PLACE_CRUD_UNDERSTANDING_20261001.md`) 및 GitHub 푸시.
-2. **검토 대기**: Owner 전달 및 Toby 검토.
+1. **현재 완료**: Geni 이해 문서 개정 (`GENI_PLACE_CRUD_UNDERSTANDING_20261001.md` Rev 1.1) 및 GitHub 푸시.
+2. **검토 대기**: Toby 최종 확인.
 3. **후속 실행 (Toby 승인 후)**:
    - **Hank (`gpt-6-astra`)**: `HANK_PLACE_CRUD_DESIGN_20261001.md` 작성 (설계 및 영향 분석)
    - **Geni**: Hank 설계안 검토 및 승인
