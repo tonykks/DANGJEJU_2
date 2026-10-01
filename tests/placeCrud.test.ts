@@ -17,7 +17,7 @@ export const fullDrafts = Object.fromEntries(ADMIN_FIELD_DEFINITIONS.map((field)
 test('identities accept only KTO digits or lowercase UUID v4 and reject noncanonical sources', async () => {
   const identity = ownerPlaceIdentity();
   assert.ok(isPlaceId(identity.placeId)); assert.ok(isPlaceId('kto-123'));
-  for (const id of ['owner-x', 'kto-x', '../kto-1', identity.placeId.toUpperCase(), identity.placeId.replace('-4', '-5')]) assert.equal(isPlaceId(id), false);
+  for (const id of ['owner-x', 'kto-x', '../kto-1', identity.placeId.toUpperCase(), identity.placeId.replace(/-4([0-9a-f]{3}-[89ab])/, '-5$1')]) assert.equal(isPlaceId(id), false);
   const plan = await buildAdminCreatePlan(minimalDrafts, identity.uuid);
   assert.ok(isCanonicalPlaceSource(plan.place, plan.source));
   assert.equal(isCanonicalPlaceSource(plan.place, { ...plan.source, path: 'misc/sources/x' }), false);

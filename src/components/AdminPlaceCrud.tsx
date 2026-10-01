@@ -49,7 +49,23 @@ export function AdminCreatePlace({ uid, Input, onClose, onCreated, onBusyChange 
     finally { setBusy(false); }
   }
   return <section className="mt-4 space-y-4 rounded-2xl border border-amber-200 bg-white p-4">
-    <div className="flex justify-between gap-3"><div><h3 className="font-black">새 장소 등록</h3><p className="mt-1 text-xs text-slate-500">장소명·검색 권역·장소유형은 필수입니다. 나머지는 아는 정보만 입력해 주세요. 등록하면 일반 화면에 공개됩니다.</p></div><button className={button} disabled={busy} onClick={onClose}>닫기</button></div>
+    <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-2 flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 bg-white/95 px-4 py-3 backdrop-blur-sm">
+      <div>
+        <h3 className="font-black text-slate-900">새 장소 등록</h3>
+        <p className="mt-0.5 text-xs text-slate-500">장소명·검색 권역·장소유형은 필수입니다. 나머지는 아는 정보만 입력해 주세요. 등록하면 일반 화면에 공개됩니다.</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="rounded-xl border border-amber-500 bg-amber-500 px-3 py-2 text-sm font-bold text-white shadow-sm hover:bg-amber-600 disabled:opacity-40"
+          disabled={busy || !!plan}
+          onClick={() => void prepare()}
+        >
+          {busy ? '처리 중…' : '등록 내용 확인'}
+        </button>
+        <button type="button" className={button} disabled={busy} onClick={onClose}>닫기</button>
+      </div>
+    </div>
     {[...new Set(ADMIN_FIELD_DEFINITIONS.map(({ group }) => group))].map((group) => <fieldset key={group} className="rounded-xl border p-3">
       <legend className="px-1 text-sm font-bold">{group}</legend><div className="grid gap-3 md:grid-cols-2">
         {ADMIN_FIELD_DEFINITIONS.filter((d) => d.group === group).map((definition) => <label key={definition.id} className="block text-xs font-bold">
@@ -58,7 +74,17 @@ export function AdminCreatePlace({ uid, Input, onClose, onCreated, onBusyChange 
         </label>)}
       </div></fieldset>)}
     {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
-    <button className={button} disabled={busy || !!plan} onClick={() => void prepare()}>{busy ? '처리 중…' : '등록 내용 확인'}</button>
+    <div className="flex justify-end gap-2 pt-2">
+      <button type="button" className={button} disabled={busy} onClick={onClose}>닫기</button>
+      <button
+        type="button"
+        className="rounded-xl border border-amber-500 bg-amber-500 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-amber-600 disabled:opacity-40"
+        disabled={busy || !!plan}
+        onClick={() => void prepare()}
+      >
+        {busy ? '처리 중…' : '등록 내용 확인'}
+      </button>
+    </div>
     {plan && <div className="fixed inset-0 z-[2500] flex items-center justify-center bg-slate-900/60 p-4"><section role="dialog" aria-modal="true" aria-labelledby="create-title" className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-5">
       <h3 id="create-title" className="font-black">새 장소 등록 확인</h3><ul className="my-4 space-y-2">{plan.inputs.map(({ label, value }) => <li key={label} className="break-words text-sm"><strong>{label}: </strong>{formatAdminValue(value)}</li>)}</ul>
       {error && <p role="alert" className="my-3 text-sm text-rose-800">{error}</p>}
