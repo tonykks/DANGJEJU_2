@@ -7,7 +7,7 @@
 - **WORK_ID:** place-crud-expansion-v1
 - **Branch:** `feature/firestore-place-ui`
 - **요구사항 기준:** `PLACE_CRUD_OWNER_REQUEST_20261001.md`, `GENI_PLACE_CRUD_UNDERSTANDING_20261001.md` Rev 1.1, `HANK_PLACE_CRUD_DESIGN_20261001.md`, `TODY_PLACE_CRUD_IMPLEMENTATION_20261001.md`, `ANY_PLACE_CRUD_VERIFICATION_20261001.md`, `FINAL_PLACE_CRUD_RESULT_20261001.md`, `PLACE_CRUD_LIVE_PRECHECK_20261002.md`, `PLACE_CRUD_LIVE_DEPLOY_RESULT_20261002.md`
-- **현재 단계:** **모든 작업 최종 완료 및 PASS**. 신규 복합 인덱스 3개 운영 배포 및 READY 전환 완료, `firestore.rules` 운영 배포 완료, Read-Only Smoke Test 100% PASS(32개 쿼리 오류 0건, missing-index 0건, permission 오류 0건). 운영 데이터 2,126건 100% 불변 유지. Toby 최종 확인 대기.
+- **현재 단계:** **모든 작업 최종 완료 및 PASS**. 신규 복합 인덱스 3개 운영 배포 및 READY 전환 완료, `firestore.rules` 운영 배포 완료, Read-Only Smoke Test 100% PASS(32개 쿼리 오류 0건, missing-index 0건, permission 오류 0건). 신규 장소 등록 상단 sticky "등록 내용 확인" 버튼 추가(`730fe8c`) 및 GitHub Pages 자동 배포 확인 완료. 운영 데이터 2,126건 100% 불변 유지. Toby 최종 확인 대기.
 - **현재 담당 / LAST_UPDATED_BY:** Geni, 2026-10-02
 - **다음 담당 / 다음 행동:** Owner가 Toby에게 최종 완료 보고를 전달.
 - **Blocker:** 없음.
