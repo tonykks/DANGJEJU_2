@@ -17,7 +17,7 @@ function queryResponse(project: string, sources: boolean, count: number, startId
       name: `projects/${project}/databases/(default)/documents/${path}`,
       fields: sources
         ? { source: { stringValue: 'KTO' }, placeId: { stringValue: `kto-${id}` } }
-        : { placeId: { stringValue: `kto-${id}` }, name: { stringValue: `Place ${id}` } },
+        : { publicationStatus: { stringValue: 'DRAFT' }, placeId: { stringValue: `kto-${id}` }, name: { stringValue: `Place ${id}` } },
       createTime: '2026-01-01T00:00:00Z', updateTime: '2026-01-01T00:00:00Z',
     }, readTime: '2026-01-01T00:00:00Z' };
   });

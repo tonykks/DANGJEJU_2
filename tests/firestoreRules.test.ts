@@ -52,14 +52,14 @@ const baseSearch = {
   petTier: 'PARTIAL', petSortKey: 20210, primarySourceId: 'canonical', inputHash: 'a'.repeat(64),
 };
 const basePlace = {
-  placeId: 'kto-1', name: '기존 장소', serviceCategory: 'CAFE', regionArea: 'UNKNOWN', municipality: 'JEJU_CITY',
+  placeId: 'kto-1', publicationStatus: 'DRAFT', name: '기존 장소', serviceCategory: 'CAFE', regionArea: 'UNKNOWN', municipality: 'JEJU_CITY',
   address: '제주특별자치도 제주시', roadAddress: null, latitude: 33.4, longitude: 126.4, coordinateQualityStatus: 'OK',
   phone: '064-000-0000', primaryImageUrl: null, secondaryImageUrl: null, shortDescription: null, fullDescription: null,
   parkingInfo: null, businessHours: null, closedDays: null, instagramUrl: null, tags: null,
   recommendedPoints: null, cautionNotes: null, petPolicy, amenities, search: baseSearch,
 };
 const aouAouLiveShapePlace = {
-  placeId: 'kto-99999999', name: '아우아우', serviceCategory: null, regionArea: null, municipality: 'JEJU_CITY',
+  placeId: 'kto-99999999', publicationStatus: 'DRAFT', name: '아우아우', serviceCategory: null, regionArea: null, municipality: 'JEJU_CITY',
   address: '제주특별자치도 제주시', roadAddress: null, latitude: 33.4, longitude: 126.4, coordinateQualityStatus: 'OK',
   phone: null, primaryImageUrl: null, secondaryImageUrl: null, shortDescription: null, fullDescription: null,
   parkingInfo: null, businessHours: null, closedDays: null, instagramUrl: null, tags: null,
@@ -117,8 +117,8 @@ test('rules enforce active-admin place updates while preserving public catalog a
     delete sparsePlace.serviceCategory;
     delete sparsePlace.regionArea;
     await seed('places/kto-3', sparsePlace);
-    await seed('places/kto-1/sources/canonical', { source: 'KTO', placeId: 'kto-1' });
-    await seed('places/kto-99999999/sources/canonical', { source: 'KTO', placeId: 'kto-99999999', immutable: 'worst-case-proof' });
+    await seed('places/kto-1/sources/canonical', { source: 'KTO', placeId: 'kto-1', placeSourceId: 'canonical' });
+    await seed('places/kto-99999999/sources/canonical', { source: 'KTO', placeId: 'kto-99999999', placeSourceId: 'canonical', immutable: 'worst-case-proof' });
     await seed('places/kto-2/sources/nested-public', { source: 'OTHER', placeId: 'kto-2' });
     await seed('misc/rules/sources/valid-kto', { source: 'KTO', placeId: 'kto-2' });
     await seed('misc/rules/sources/private', { source: 'OTHER', placeId: 'kto-3' });
@@ -130,12 +130,12 @@ test('rules enforce active-admin place updates while preserving public catalog a
     await seed('admins/active-admin', { role: 'admin', active: true });
     await seed('admins/other-admin', { role: 'admin', active: true });
 
-    assert.equal((await getDocs(collection(guest, 'places'))).empty, false);
-    assert.equal((await getDoc(doc(guest, 'places/kto-2/sources/nested-public'))).exists(), true);
+    await denied(getDocs(collection(guest, 'places')));
+    assert.equal((await getDocs(query(collection(guest, 'places'), where('publicationStatus', 'in', ['DRAFT', 'PUBLISHED'])))).empty, false);
+    await denied(getDoc(doc(guest, 'places/kto-2/sources/nested-public')));
     await denied(getDocs(collectionGroup(guest, 'sources')));
     await denied(getDocs(query(collectionGroup(guest, 'sources'), where('source', '==', 'KTO'))));
-    const constrained = await getDocs(query(collectionGroup(guest, 'sources'), where('source', '==', 'KTO'), where('placeId', 'in', ['kto-1', 'kto-2'])));
-    assert.equal(constrained.size, 2);
+    await denied(getDocs(query(collectionGroup(guest, 'sources'), where('source', '==', 'KTO'), where('placeId', 'in', ['kto-1', 'kto-2']))));
     await denied(getDocs(query(collectionGroup(guest, 'sources'), where('source', '==', 'KTO'), where('placeId', 'in', ['kto-1', 'invalid']))));
     for (const id of ['private', 'invalid', 'missing']) await denied(getDoc(doc(guest, `misc/rules/sources/${id}`)));
 

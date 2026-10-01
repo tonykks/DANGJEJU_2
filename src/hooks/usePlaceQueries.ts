@@ -5,8 +5,23 @@ import { getPlace, getPlaceSource, loadHeroPlaces, loadPlacesByIds, readSearchFi
 import type { Place, PlaceCategory, RegionId } from '../types';
 import type { SearchCategory, SearchRegion } from '../lib/searchTypes';
 import { UI_CATEGORY_TO_SEARCH, UI_REGION_TO_SEARCH } from '../lib/searchTypes';
+import { PLACE_DATA_CHANGED } from '../lib/placeInvalidation';
 
 type Status = 'idle' | 'loading' | 'ready' | 'error';
+
+function useRevalidation(enabled: boolean, refresh: () => void) {
+  useEffect(() => {
+    const revalidate = () => { if (enabled && document.visibilityState !== 'hidden') refresh(); };
+    window.addEventListener('focus', revalidate);
+    document.addEventListener('visibilitychange', revalidate);
+    window.addEventListener(PLACE_DATA_CHANGED, revalidate);
+    return () => {
+      window.removeEventListener('focus', revalidate);
+      document.removeEventListener('visibilitychange', revalidate);
+      window.removeEventListener(PLACE_DATA_CHANGED, revalidate);
+    };
+  }, [enabled, refresh]);
+}
 
 function useDocCache() {
   const cache = useRef(new Map<string, CatalogDocument>());
@@ -21,8 +36,11 @@ export function useHeroPlaces(enabled: boolean) {
   const [status, setStatus] = useState<Status>('idle');
   const [attempt, setAttempt] = useState(0);
   const { cache, remember } = useDocCache();
+  useRevalidation(enabled, () => { cache.current.clear(); setPlaces([]); setAttempt((n) => n + 1); });
 
   useEffect(() => {
+    cache.current.clear();
+    setPlaces([]);
     if (!enabled) {
       setPlaces([]);
       setStatus('idle');
@@ -57,8 +75,11 @@ export function usePlaceSearch(region: RegionId, category: PlaceCategory, enable
   const [status, setStatus] = useState<Status>('idle');
   const [attempt, setAttempt] = useState(0);
   const { cache, remember } = useDocCache();
+  useRevalidation(enabled, () => { cache.current.clear(); setPlaces([]); setAttempt((n) => n + 1); });
 
   useEffect(() => {
+    cache.current.clear();
+    setPlaces([]);
     if (!ready) {
       setPlaces([]);
       setStatus('idle');
@@ -91,26 +112,27 @@ export async function enrichPlaceWithSource(
   place: Place,
   docCache: Map<string, CatalogDocument>,
 ): Promise<Place> {
-  if (!db) return place;
-  let placeDoc = docCache.get(place.id);
-  if (!placeDoc) {
-    placeDoc = await getPlace(db, place.id) ?? undefined;
-    if (placeDoc) docCache.set(place.id, placeDoc);
-  }
-  if (!placeDoc) return place;
+  docCache.delete(place.id);
+  if (!db) throw new Error('장소 정보를 확인하지 못했습니다.');
+  const placeDoc = await getPlace(db, place.id);
+  if (!placeDoc) throw new Error('현재 공개되지 않은 장소입니다.');
+  docCache.set(place.id, placeDoc);
   const search = readSearchFields(placeDoc.data);
   if (!search?.primarySourceId) return adaptPlace(placeDoc, []);
   const source = await getPlaceSource(db, place.id, search.primarySourceId);
   return adaptPlace(placeDoc, source ? [source] : []);
 }
 
-export function useFavoritePlaces(placeIds: string[], enabled: boolean) {
+export function useFavoritePlaces(placeIds: string[], enabled: boolean, accountId: string | null = null) {
   const [places, setPlaces] = useState<Place[]>([]);
   const [status, setStatus] = useState<Status>('idle');
   const [attempt, setAttempt] = useState(0);
   const { cache, remember } = useDocCache();
+  useRevalidation(enabled, () => { cache.current.clear(); setPlaces([]); setAttempt((n) => n + 1); });
 
   useEffect(() => {
+    cache.current.clear();
+    setPlaces([]);
     if (!enabled) {
       setPlaces([]);
       setStatus('idle');
@@ -122,20 +144,14 @@ export function useFavoritePlaces(placeIds: string[], enabled: boolean) {
       setStatus('error');
       return;
     }
-    const missing = placeIds.filter((id) => !cache.current.has(id));
-    const load = missing.length
-      ? loadPlacesByIds(db, missing).then((docs) => { remember(docs); return docs; })
-      : Promise.resolve([]);
-    void load.then(() => {
+    void loadPlacesByIds(db, placeIds).then((docs) => {
       if (!active) return;
-      const ordered = placeIds
-        .map((id) => cache.current.get(id))
-        .filter((doc): doc is CatalogDocument => !!doc);
-      setPlaces(adaptPlaceDocs(ordered));
+      remember(docs);
+      setPlaces(adaptPlaceDocs(docs));
       setStatus('ready');
     }, () => { if (active) setStatus('error'); });
     return () => { active = false; };
-  }, [enabled, attempt, placeIds.join('|')]);
+  }, [enabled, attempt, accountId, placeIds.join('|')]);
 
   return { places, status, cache, retry: () => setAttempt((n) => n + 1) };
 }

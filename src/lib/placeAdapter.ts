@@ -1,4 +1,5 @@
 import type { Place, PlaceCategory, RegionId, TriState } from '../types.ts';
+import { isCanonicalPlaceSource, isPlaceId, isPublicStatus } from './placeIdentity';
 import {
   SEARCH_CATEGORY_TO_UI,
   SEARCH_REGION_TO_UI,
@@ -106,13 +107,11 @@ function serviceCategory(value: unknown): PlaceCategory | null {
 
 export function adaptPlace(document: CatalogDocument, sources: CatalogDocument[] = []): Place {
   const data = document.data;
-  if (data.placeId !== document.id || !/^kto-\d+$/.test(document.id)) {
+  if (data.placeId !== document.id || !isPlaceId(document.id)) {
     throw new Error(`Invalid catalog place ID: ${document.id}`);
   }
-  // Stable preference if future multiple sources exist; only join KTO data for this place.
-  const source = [...sources].filter((s) => s.data.placeId === document.id && s.data.source === 'KTO')
-    .sort((a, b) => a.id.localeCompare(b.id))[0];
-  const kto = record(source?.data.kto);
+  const source = sources.find((candidate) => isCanonicalPlaceSource(document, candidate));
+  const kto = source?.data.source === 'KTO' ? record(source.data.kto) : {};
   const policy = record(data.petPolicy);
   const rawStatus = policy.petInformationStatus;
   const petInformationStatus = rawStatus === 'KTO_OVERLAY_FOUND' || rawStatus === 'ADMIN_CONFIRMED'
@@ -211,6 +210,7 @@ export function adaptPlace(document: CatalogDocument, sources: CatalogDocument[]
 }
 
 export function joinPlacesCatalog(placeDocs: CatalogDocument[], sourceDocs: CatalogDocument[]) {
+  placeDocs = placeDocs.filter((place) => isPublicStatus(place.data.publicationStatus));
   const byPlace = new Map<string, CatalogDocument[]>();
   const placeIds = new Set(placeDocs.map((p) => p.id));
   let unmatchedSources = 0;
@@ -240,7 +240,7 @@ export function joinPlacesCatalog(placeDocs: CatalogDocument[], sourceDocs: Cata
 
 /** List/map path: Place docs already carry search.*; no Source join. */
 export function adaptPlaceDocs(placeDocs: CatalogDocument[]): Place[] {
-  return placeDocs.map((doc) => adaptPlace(doc, []));
+  return placeDocs.filter((doc) => isPublicStatus(doc.data.publicationStatus)).map((doc) => adaptPlace(doc, []));
 }
 
 export function savedCatalogPlaces(places: Place[], savedIds: string[]): Place[] {

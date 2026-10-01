@@ -26,3 +26,8 @@
 | 2026-09-19 | admin-place-editor-v1 | 관리자 판별은 `admins/{uid}`의 `role=admin`, `active=true`; Client는 자기 문서 read만 가능하고 관리자 문서 write는 금지한다. | 이메일/UID 하드코딩 없이 UI와 Firestore Rules를 같은 UID 권한 원천으로 묶는다. |
 | 2026-09-19 | admin-place-editor-v1 | KTO Source는 immutable로 두고, 일반 표시값은 Place 서비스 field, KTO 전용 Pet 상세는 sparse `adminOverrides.petDetails`, 명시 삭제는 `manualAdmin.clearedFields`로 표현한다. | 관리자 보완 우선순위와 원천 provenance를 함께 보존하고 향후 Agent 후보 승인도 같은 저장 경로를 재사용한다. |
 | 2026-09-19 | admin-place-editor-v1 | V1 이미지는 URL 입력/검증/preview까지만 포함하고 Storage 파일 업로드는 별도 승인으로 둔다. | Storage/Billing/Rules 운영 설정은 이번 승인 범위가 아니다. |
+| 2026-10-01 | place-crud-expansion-v1 | 신규 Place ID는 `owner-<uuid v4>`로 자동 생성하고 canonical `OWNER_INPUT` Source envelope와 원자적 동시 생성한다. | 기존 KTO ID와의 충돌을 원천 차단하고 단독 Place 문서 생성을 방지한다. |
+| 2026-10-01 | place-crud-expansion-v1 | Soft Delete는 `publicationStatus: 'HIDDEN'`으로 처리하고 신규 `deleted` boolean을 추가하지 않는다. Restore는 `previousPublicationStatus`로 정확히 원복한다. | 기존 스키마 V1을 100% 재사용하고 2,126건 마이그레이션 없이 On-demand 쿼리 격리를 달성한다. |
+| 2026-10-01 | place-crud-expansion-v1 | 일괄 Soft Delete / Restore는 5개 단위 순차 청크 트랜잭션으로 처리한다. | 대량 처리 시 Firestore 트랜잭션 경합, 타임아웃, 부분 실패 불투명성을 방지한다. |
+| 2026-10-01 | place-crud-expansion-v1 | Firestore Rules에서 상태 전이(`validPublicationTransition`)를 일반 필드 편집과 분리한 fast path로 구성하고 문서 물리 삭제(`delete`)는 전면 차단한다. | Firestore 1,000 expression limit 오류를 방지하고 영구적인 데이터 유실 위험을 원천 차단한다. |
+| 2026-10-01 | place-crud-expansion-v1 | 공개 Place 및 Source 문서에 관리자 UID, 이메일 등 개인 식별자를 저장하지 않고 `manualAdmin.source = 'ADMIN_UI'`만 유지한다. | 관리자 개인정보 노출 위험을 원천 차단하고 인증은 Firebase Auth 세션으로만 검증한다. |

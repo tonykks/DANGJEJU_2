@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  documentId,
   endAt,
   getDocs,
   limit,
@@ -9,12 +10,17 @@ import {
   runTransaction,
   serverTimestamp,
   startAt,
+  startAfter,
+  where,
   type Firestore,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore/lite';
 import { effectiveList, effectiveNumber, effectivePetDetails, effectiveText, hasOwn, objectValue, PET_DETAIL_FIELDS, stringValues, trimmedText } from './effectivePlace';
 import { deriveSearchFields } from './searchDerivation';
-import { getPlace, getPlaceSource, guardedFirestoreRead, readSearchFields } from './placeSearch';
+import { getAdminPlace, getPlaceSource, guardedFirestoreRead, readSearchFields } from './placeSearch';
+import { isCanonicalPlaceSource, isPlaceId, isPublicStatus, ownerInputSource, ownerPlaceIdentity, PUBLICATION_VISIBLE_STATUSES } from './placeIdentity';
+import { SEARCH_VERSION, UI_CATEGORY_TO_SEARCH, UI_REGION_TO_SEARCH, type SearchCategory, type SearchRegion } from './searchTypes';
+import { isQuotaError } from './firestoreQuota';
 import type { CatalogDocument } from './placeAdapter';
 
 export const ADMIN_PLACE_QUERY_LIMIT = 12;
@@ -129,13 +135,13 @@ export async function searchAdminPlacesByName(db: Firestore, value: string): Pro
 }
 
 export async function loadAdminPlace(db: Firestore, placeId: string): Promise<AdminLoadedPlace> {
-  const place = await getPlace(db, placeId);
+  const place = await getAdminPlace(db, placeId);
   if (!place) throw new Error('선택한 장소를 찾을 수 없습니다.');
   const sourceId = readSearchFields(place.data)?.primarySourceId;
   if (!sourceId) throw new Error('장소의 canonical source 연결정보가 없습니다.');
   const source = await getPlaceSource(db, placeId, sourceId);
-  if (!source || source.data.source !== 'KTO' || source.data.placeId !== placeId) {
-    throw new Error('장소의 canonical KTO source를 확인할 수 없습니다.');
+  if (!source || !isCanonicalPlaceSource(place, source)) {
+    throw new Error('장소의 canonical source를 확인할 수 없습니다.');
   }
   return { place, source };
 }
@@ -292,11 +298,7 @@ export function buildAdminEditPlan(
   const nextPetDetails = structuredClone(objectValue(nextOverrides.petDetails));
   const clearedFields = new Set(stringValues(objectValue(original.manualAdmin).clearedFields));
   const previousAudit = objectValue(original.manualAdmin);
-  const managedFields = new Set([
-    ...stringValues(previousAudit.managedFields),
-    ...stringValues(previousAudit.changedFields),
-    ...clearedFields,
-  ]);
+  const managedFields = new Set(normalizedManagedFields(original));
   const candidates: { definition: AdminFieldDefinition; before: unknown; after: unknown; clear: boolean }[] = [];
   const unchangedSelections: AdminEditPlan['unchangedSelections'] = [];
 
@@ -387,6 +389,7 @@ export function buildAdminEditPlan(
     return key;
   }).filter((key) => key !== 'coordinateQualityStatus'))].sort();
   const manualAdmin = {
+    ...(hasOwn(previousAudit, 'previousPublicationStatus') ? { previousPublicationStatus: previousAudit.previousPublicationStatus } : {}),
     source: 'ADMIN_UI',
     changedFields,
     changedTopLevel,
@@ -456,4 +459,238 @@ export async function saveAdminPlace(
       updatedAt: timestamp,
     });
   });
+}
+
+export type AdminCreatePlan = {
+  uuid: string;
+  place: CatalogDocument;
+  source: CatalogDocument;
+  inputs: { label: string; value: unknown }[];
+};
+
+/** Empty inputs are schema defaults, never display placeholders or KTO facts. */
+export async function buildAdminCreatePlan(drafts: Record<string, string>, uuid: string): Promise<AdminCreatePlan> {
+  const { placeId, sourceId } = ownerPlaceIdentity(uuid);
+  const timestamp = serverTimestamp();
+  const data: Record<string, unknown> = {
+    placeId, publicationStatus: 'PUBLISHED', municipality: null,
+    coordinateQualityStatus: 'MISSING', createdAt: timestamp, updatedAt: timestamp,
+  };
+  const petPolicy: Record<string, unknown> = { petInformationStatus: 'UNKNOWN' };
+  const amenities: Record<string, unknown> = {};
+  const petDetails: Record<string, unknown> = {};
+  const changedFields: string[] = [];
+  const topLevels = new Set<string>();
+  const inputs: AdminCreatePlan['inputs'] = [];
+  let petFacts = false;
+  for (const definition of ADMIN_FIELD_DEFINITIONS) {
+    const draft = (drafts[definition.id] ?? '').trim();
+    const required = ['name', 'serviceCategory', 'regionArea'].includes(definition.id);
+    const provided = draft !== '' && !(definition.kind === 'triState' && draft === 'UNKNOWN');
+    const value = provided || required ? parseAdminValue(definition, draft, false)
+      : definition.kind === 'triState' ? 'UNKNOWN' : null;
+    if (definition.target === 'root') data[definition.key] = value;
+    else if (definition.target === 'petPolicy') petPolicy[definition.key] = value;
+    else if (definition.target === 'amenities') amenities[definition.key] = value;
+    else if (provided) petDetails[definition.key] = value;
+    if (provided || required) {
+      changedFields.push(definition.id);
+      topLevels.add(definition.target === 'root' ? definition.key : definition.target === 'petDetail' ? 'adminOverrides' : definition.target);
+      inputs.push({ label: definition.label, value });
+      if (definition.target === 'petPolicy' || definition.target === 'petDetail') petFacts = true;
+    }
+  }
+  if ((data.latitude === null) !== (data.longitude === null)) throw new Error('좌표는 위도·경도를 함께 입력해 주세요.');
+  if (data.latitude !== null) data.coordinateQualityStatus = 'ADMIN_CONFIRMED';
+  if (petFacts) {
+    petPolicy.petInformationStatus = 'ADMIN_CONFIRMED';
+    changedFields.push('petPolicy.petInformationStatus');
+    topLevels.add('petPolicy');
+  }
+  data.petPolicy = petPolicy;
+  data.amenities = amenities;
+  if (Object.keys(petDetails).length) data.adminOverrides = { petDetails };
+  data.manualAdmin = { source: 'ADMIN_UI', updatedAt: timestamp, changedFields: changedFields.sort(),
+    changedTopLevel: [...topLevels].sort(), managedFields: [...changedFields], clearedFields: [] };
+  const source = { id: sourceId, path: `places/${placeId}/sources/${sourceId}`, data: ownerInputSource(uuid, timestamp) };
+  data.search = { ...await deriveSearchFields(data, source.data), derivedAt: timestamp };
+  return { uuid, place: { id: placeId, path: `places/${placeId}`, data }, source, inputs };
+}
+
+function sameCreatedPayload(actual: Record<string, unknown>, expected: Record<string, unknown>): boolean {
+  // A retry may only acknowledge this exact initial payload, never overwrite an existing place.
+  const strip = (value: Record<string, unknown>) => {
+    const { createdAt: _created, updatedAt: _updated, ...rest } = value;
+    const { updatedAt: _auditTime, ...audit } = objectValue(rest.manualAdmin);
+    const { derivedAt: _derived, ...search } = objectValue(rest.search);
+    return { ...rest, manualAdmin: audit, search };
+  };
+  const canonical = (value: unknown): string => value && typeof value === 'object'
+    ? Array.isArray(value) ? `[${value.map(canonical).join(',')}]`
+      : `{${Object.keys(value).sort().map((key) => `${key}:${canonical((value as Record<string, unknown>)[key])}`).join(',')}}`
+    : JSON.stringify(value);
+  return canonical(strip(actual)) === canonical(strip(expected));
+}
+
+export async function createAdminPlace(db: Firestore, plan: AdminCreatePlan, uid: string): Promise<'created' | 'confirmed'> {
+  if (!uid) throw new Error('관리자 로그인 상태를 확인할 수 없습니다.');
+  const placeRef = doc(db, plan.place.path);
+  const sourceRef = doc(db, plan.source.path);
+  const matches = (place: CatalogDocument, source: CatalogDocument) =>
+    isCanonicalPlaceSource(place, source) && sameCreatedPayload(place.data, plan.place.data);
+  try {
+    return await guardedFirestoreRead(() => runTransaction(db, async (transaction) => {
+      const current = await transaction.get(placeRef);
+      const currentSource = await transaction.get(sourceRef);
+      if (current.exists() || currentSource.exists()) {
+        if (current.exists() && currentSource.exists() && matches(documentData(current), documentData(currentSource))) return 'confirmed' as const;
+        throw new Error('같은 등록 ID에 다른 데이터가 있습니다. 등록 결과를 다시 확인해 주세요.');
+      }
+      transaction.set(placeRef, plan.place.data);
+      transaction.set(sourceRef, plan.source.data);
+      return 'created' as const;
+    }, { maxAttempts: 3 }));
+  } catch (error) {
+    if (!isQuotaError(error) && !['permission-denied', 'unauthenticated', 'invalid-argument'].includes(errorCode(error))) {
+      try {
+        const place = await getAdminPlace(db, plan.place.id);
+        const source = place && await getPlaceSource(db, plan.place.id, plan.source.id);
+        if (place && source && matches(place, source)) return 'confirmed';
+      } catch { /* Keep the same operation ID for a safe later retry. */ }
+    }
+    throw error;
+  }
+}
+
+export const ADMIN_REGION_PAGE_SIZE = 100;
+export type AdminRegionFilter = { region: SearchRegion; category: SearchCategory; hidden: boolean };
+export type AdminRegionPage = { places: CatalogDocument[]; cursor: QueryDocumentSnapshot | null; hasMore: boolean };
+
+export async function searchAdminPlacesByRegionAndCategory(
+  db: Firestore, filter: AdminRegionFilter, cursor?: QueryDocumentSnapshot | null,
+): Promise<AdminRegionPage> {
+  if (!Object.values(UI_REGION_TO_SEARCH).includes(filter.region as Exclude<SearchRegion, 'UNKNOWN'>)
+    || !Object.values(UI_CATEGORY_TO_SEARCH).includes(filter.category as Exclude<SearchCategory, 'UNKNOWN'>)) {
+    throw new Error('지역과 업종을 모두 선택해 주세요.');
+  }
+  return guardedFirestoreRead(async () => {
+    const snapshot = await getDocs(query(collection(db, 'places'),
+      where('search.version', '==', SEARCH_VERSION), where('search.region', '==', filter.region),
+      where('search.category', '==', filter.category),
+      filter.hidden ? where('publicationStatus', '==', 'HIDDEN') : where('publicationStatus', 'in', [...PUBLICATION_VISIBLE_STATUSES]),
+      orderBy('name'), orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(ADMIN_REGION_PAGE_SIZE)));
+    return { places: snapshot.docs.map(documentData), cursor: snapshot.docs.at(-1) ?? null, hasMore: snapshot.size === ADMIN_REGION_PAGE_SIZE };
+  });
+}
+
+export type PublicationAction = 'hide' | 'restore';
+export type PublicationResultKind = 'committed' | 'already' | 'confirmed' | 'conflict' | 'missing' | 'unrestorable' | 'failed' | 'uncertain' | 'unattempted';
+export type PublicationResult = { id: string; name: string; kind: PublicationResultKind; reason?: string };
+export const ADMIN_PUBLICATION_CHUNK_SIZE = 5;
+
+export function normalizedManagedFields(data: Record<string, unknown>): string[] {
+  const audit = objectValue(data.manualAdmin);
+  const accumulated = [...new Set([...stringValues(audit.managedFields), ...stringValues(audit.changedFields), ...stringValues(audit.clearedFields)])];
+  if (Array.isArray(audit.managedFields)) return accumulated.sort();
+  const allowed = new Set([...ADMIN_FIELD_DEFINITIONS.map(({ id }) => id), 'petPolicy.petInformationStatus', 'publicationStatus']);
+  return accumulated.filter((id) => allowed.has(id)).sort();
+}
+
+export function buildPublicationTransition(data: Record<string, unknown>, action: PublicationAction, timestamp: unknown): Record<string, unknown> {
+  const audit = objectValue(data.manualAdmin);
+  const before = data.publicationStatus;
+  const restored = audit.previousPublicationStatus;
+  if (action === 'hide' ? !isPublicStatus(before) : before !== 'HIDDEN' || !isPublicStatus(restored)) {
+    throw new Error('허용되지 않은 상태 전이 또는 복원 근거 없음');
+  }
+  return { publicationStatus: action === 'hide' ? 'HIDDEN' : restored, updatedAt: timestamp,
+    manualAdmin: { source: 'ADMIN_UI', updatedAt: timestamp, changedFields: ['publicationStatus'], changedTopLevel: ['publicationStatus'],
+      managedFields: [...new Set([...normalizedManagedFields(data), 'publicationStatus'])].sort(),
+      clearedFields: stringValues(audit.clearedFields),
+      ...(action === 'hide' ? { previousPublicationStatus: before } : {}) } };
+}
+
+export function classifyPublicationTarget(target: CatalogDocument, current: CatalogDocument | null, action: PublicationAction): PublicationResultKind | null {
+  if (!current) return 'missing';
+  const data = current.data;
+  const expected = target.data;
+  if (action === 'hide' && data.publicationStatus === 'HIDDEN') return 'already';
+  if (action === 'restore' && isPublicStatus(data.publicationStatus)) {
+    return data.publicationStatus === objectValue(expected.manualAdmin).previousPublicationStatus ? 'already' : 'conflict';
+  }
+  if (action === 'restore' && !isPublicStatus(objectValue(data.manualAdmin).previousPublicationStatus)) return 'unrestorable';
+  if (!sameAdminPlaceRevision(data.updatedAt, expected.updatedAt)
+    || data.publicationStatus !== expected.publicationStatus
+    || objectValue(data.manualAdmin).previousPublicationStatus !== objectValue(expected.manualAdmin).previousPublicationStatus
+    || objectValue(data.search).region !== objectValue(expected.search).region
+    || objectValue(data.search).category !== objectValue(expected.search).category) return 'conflict';
+  return null;
+}
+
+function errorCode(error: unknown): string { return String(objectValue(error).code ?? '').replace(/^firestore\//, ''); }
+const resultFor = (place: CatalogDocument, kind: PublicationResultKind, reason?: string): PublicationResult =>
+  ({ id: place.id, name: trimmedText(place.data.name), kind, ...(reason ? { reason } : {}) });
+
+export type PublicationTransport = {
+  commit: (chunk: CatalogDocument[], action: PublicationAction) => Promise<PublicationResult[]>;
+  read: (id: string) => Promise<CatalogDocument | null>;
+};
+
+/** Results are accumulated only outside transaction callbacks, which Firestore can rerun. */
+export async function runPublicationChunks(
+  targets: CatalogDocument[], action: PublicationAction, transport: PublicationTransport,
+  options: { signal?: AbortSignal; onProgress?: (results: PublicationResult[]) => void } = {},
+): Promise<PublicationResult[]> {
+  const unique = [...new Map(targets.map((place) => [place.id, place])).values()];
+  if (unique.some((place) => !isPlaceId(place.id))) throw new Error('잘못된 장소 ID입니다.');
+  const results: PublicationResult[] = [];
+  let stopped = false;
+  for (let i = 0; i < unique.length; i += ADMIN_PUBLICATION_CHUNK_SIZE) {
+    const chunk = unique.slice(i, i + ADMIN_PUBLICATION_CHUNK_SIZE);
+    if (stopped || options.signal?.aborted) {
+      results.push(...chunk.map((place) => resultFor(place, 'unattempted')));
+      continue;
+    }
+    try { results.push(...await transport.commit(chunk, action)); }
+    catch (error) {
+      const code = errorCode(error);
+      const definite = ['permission-denied', 'unauthenticated', 'invalid-argument', 'failed-precondition'].includes(code) || isQuotaError(error);
+      stopped = true;
+      for (const place of chunk) {
+        if (definite) { results.push(resultFor(place, 'failed', code || 'quota')); continue; }
+        try {
+          const current = await transport.read(place.id);
+          const goal = action === 'hide' ? 'HIDDEN' : objectValue(place.data.manualAdmin).previousPublicationStatus;
+          results.push(resultFor(place, current?.data.publicationStatus === goal ? 'confirmed' : 'uncertain', '응답 유실 후 현재 상태 확인'));
+        } catch { results.push(resultFor(place, 'uncertain', '저장 결과를 다시 확인해 주세요.')); }
+      }
+    }
+    options.onProgress?.([...results]);
+  }
+  return results;
+}
+
+function batchPublication(db: Firestore, targets: CatalogDocument[], action: PublicationAction, options?: Parameters<typeof runPublicationChunks>[3]) {
+  return runPublicationChunks(targets, action, {
+    read: (id) => getAdminPlace(db, id),
+    commit: (chunk) => guardedFirestoreRead(() => runTransaction(db, async (transaction) => {
+      const current = [];
+      for (const target of chunk) current.push(await transaction.get(doc(db, 'places', target.id)));
+      return chunk.map((target, index) => {
+        const snapshot = current[index];
+        const loaded = snapshot.exists() ? documentData(snapshot) : null;
+        const kind = classifyPublicationTarget(target, loaded, action);
+        if (kind) return resultFor(target, kind);
+        transaction.update(snapshot.ref, buildPublicationTransition(loaded!.data, action, serverTimestamp()));
+        return resultFor(target, 'committed');
+      });
+    }, { maxAttempts: 3 })),
+  }, options);
+}
+
+export function batchHideAdminPlaces(db: Firestore, targets: CatalogDocument[], options?: Parameters<typeof runPublicationChunks>[3]) {
+  return batchPublication(db, targets, 'hide', options);
+}
+export function batchRestoreAdminPlaces(db: Firestore, targets: CatalogDocument[], options?: Parameters<typeof runPublicationChunks>[3]) {
+  return batchPublication(db, targets, 'restore', options);
 }

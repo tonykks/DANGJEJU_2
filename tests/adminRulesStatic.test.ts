@@ -6,8 +6,8 @@ const rules = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8
 
 test('rules statically preserve admin/source/protected-field contracts', () => {
   assert.match(rules, /match \/admins\/\{uid\}[\s\S]*allow get: if isOwner\(uid\);[\s\S]*allow list, create, update, delete: if false;/);
-  assert.match(rules, /match \/places\/\{placeId\}[\s\S]*allow create, delete: if false;[\s\S]*allow update: if isActiveAdmin\(\)/);
-  assert.match(rules, /match \/sources\/\{sourceId\}[\s\S]*allow write: if false;/);
+  assert.match(rules, /match \/places\/\{placeId\}[\s\S]*allow create: if isActiveAdmin\(\) && validOwnerPlaceCreate\(placeId\);[\s\S]*allow delete: if false;[\s\S]*allow update: if isActiveAdmin\(\)/);
+  assert.match(rules, /match \/sources\/\{sourceId\}[\s\S]*allow update, delete: if false;/);
   assert.match(rules, /let data = request\.resource\.data;[\s\S]*let oldData = resource\.data;[\s\S]*let affected = data\.diff\(oldData\)\.affectedKeys\(\);/);
   assert.match(rules, /let displayAffected = affected\.difference\([\s\S]*'manualAdmin', 'search', 'updatedAt', 'coordinateQualityStatus'/);
   assert.match(rules, /displayAffected\.size\(\) == 22[\s\S]*validCompleteManualAdmin[\s\S]*validPartialManualAdmin/);

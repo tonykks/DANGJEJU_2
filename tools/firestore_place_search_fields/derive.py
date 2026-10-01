@@ -278,6 +278,12 @@ def present_basic_and_pet(place: dict, source: dict) -> tuple[int, int, str, str
     overlay = status == "KTO_OVERLAY_FOUND" and has_join == "Y" and isinstance(pet_obj, dict)
     admin_confirmed = status == "ADMIN_CONFIRMED"
     unknown = status == "UNKNOWN" and has_join == "N" and pet_obj is None
+    if s.get("source") not in ("KTO", "OWNER_INPUT"):
+        raise ValueError("Invalid source kind")
+    if s.get("source") == "OWNER_INPUT":
+        if "kto" in s or "collector" in s or status == "KTO_OVERLAY_FOUND":
+            raise ValueError(f"pet status mismatch for {place_id}")
+        unknown = status == "UNKNOWN"
     if not overlay and not admin_confirmed and not unknown:
         raise ValueError(f"pet status mismatch for {place_id}")
 

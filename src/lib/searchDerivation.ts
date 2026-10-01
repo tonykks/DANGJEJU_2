@@ -171,10 +171,14 @@ function presentScores(place: Record<string, unknown>, source: Record<string, un
   }
   const collectorJoin = objectValue(source.collector).hasPetJoin;
   const sourcePet = kto.pet;
-  if (status === 'KTO_OVERLAY_FOUND' && (collectorJoin !== 'Y' || !sourcePet || typeof sourcePet !== 'object' || Array.isArray(sourcePet))) {
+  if (!['KTO', 'OWNER_INPUT'].includes(String(source.source))) throw new Error('Invalid source kind');
+  if (source.source === 'OWNER_INPUT' && ('kto' in source || 'collector' in source || status === 'KTO_OVERLAY_FOUND')) {
     throw new Error(`Pet source mismatch for ${placeId}`);
   }
-  if (status === 'UNKNOWN' && (collectorJoin !== 'N' || (sourcePet !== null && sourcePet !== undefined))) {
+  if (source.source === 'KTO' && status === 'KTO_OVERLAY_FOUND' && (collectorJoin !== 'Y' || !sourcePet || typeof sourcePet !== 'object' || Array.isArray(sourcePet))) {
+    throw new Error(`Pet source mismatch for ${placeId}`);
+  }
+  if (source.source === 'KTO' && status === 'UNKNOWN' && (collectorJoin !== 'N' || (sourcePet !== null && sourcePet !== undefined))) {
     throw new Error(`Pet source mismatch for ${placeId}`);
   }
   const petScore = status === 'UNKNOWN' ? 0 : effectivePetDetails(place, source)

@@ -5,11 +5,11 @@ import { loadCatalogWith } from '../src/lib/placesCatalog.ts';
 import { createFavoritesSession } from '../src/lib/favoritesSession.ts';
 
 function place(id = 'kto-3401751', extra: Record<string, unknown> = {}): CatalogDocument {
-  return { id, path: `places/${id}`, data: { placeId: id, name: '제주 카페', address: '제주시 애월읍', municipality: 'JEJU_CITY', regionArea: 'UNKNOWN', serviceCategory: null, latitude: 33.4, longitude: 126.3, petPolicy: { petInformationStatus: 'UNKNOWN', indoorAllowed: 'UNKNOWN' }, ...extra } };
+  return { id, path: `places/${id}`, data: { placeId: id, publicationStatus: 'DRAFT', search: { version: 1, primarySourceId: `kto-areaBasedList2-${id.slice(4)}` }, name: '제주 카페', address: '제주시 애월읍', municipality: 'JEJU_CITY', regionArea: 'UNKNOWN', serviceCategory: null, latitude: 33.4, longitude: 126.3, petPolicy: { petInformationStatus: 'UNKNOWN', indoorAllowed: 'UNKNOWN' }, ...extra } };
 }
 function source(id = 'kto-3401751', kto: Record<string, unknown> = {}): CatalogDocument {
   const sourceId = `kto-areaBasedList2-${id.slice(4)}`;
-  return { id: sourceId, path: `places/${id}/sources/${sourceId}`, data: { placeId: id, source: 'KTO', kto: { contentTypeId: '39', cat3: 'A05020900', ...kto } } };
+  return { id: sourceId, path: `places/${id}/sources/${sourceId}`, data: { placeId: id, placeSourceId: sourceId, source: 'KTO', kto: { contentTypeId: '39', cat3: 'A05020900', ...kto } } };
 }
 
 test('all imported content types map to Owner 8-kind UI categories; shopping/leisure cannot imply cafe', () => {

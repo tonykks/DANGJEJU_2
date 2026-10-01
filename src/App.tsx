@@ -14,6 +14,7 @@ import AdminPlaceEditor from './components/AdminPlaceEditor';
 import { useAuthFavorites } from './hooks/useAuthFavorites';
 import { useAdminAccess } from './hooks/useAdminAccess';
 import { useHashRoute } from './hooks/useHashRoute';
+import { PLACE_DATA_CHANGED } from './lib/placeInvalidation';
 import {
   Coffee,
   MapPin,
@@ -69,8 +70,10 @@ export default function App() {
   const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'split' | 'list' | 'map'>('split');
   const [activeBanner, setActiveBanner] = useState<EventBanner | null>(null);
+  const [detailStatus, setDetailStatus] = useState<string | null>(null);
+  const detailGeneration = useRef(0);
 
-  const favorites = useFavoritePlaces(savedPlaceIds, !isAdminRoute && Boolean(user) && isSavedDrawerOpen);
+  const favorites = useFavoritePlaces(savedPlaceIds, !isAdminRoute && Boolean(user) && isSavedDrawerOpen, user?.uid ?? null);
   const saveNotice = notice ?? favoritesError ?? (pendingIds.length > 0 ? '찜 변경을 저장하고 있습니다…' : null);
 
   // Home and search share the same array for map + list (no client filter of a full catalog).
@@ -78,19 +81,50 @@ export default function App() {
   const savedPlacesList = favorites.places;
 
   const handleOpenDetail = async (place: Place) => {
-    setSelectedPlace(place);
-    setModalPlace(place);
-    setIsModalOpen(true);
+    const ticket = ++detailGeneration.current;
+    setSelectedPlace(null); setModalPlace(null); setIsModalOpen(false);
+    setDetailStatus('장소 정보를 확인하고 있습니다…');
     try {
       const enriched = await enrichPlaceWithSource(place, docCache.current);
+      if (ticket !== detailGeneration.current) return;
       setModalPlace(enriched);
       setSelectedPlace(enriched);
-    } catch {
-      /* keep list-level place if source fetch fails */
+      setIsModalOpen(true); setDetailStatus(null);
+    } catch (error) {
+      if (ticket !== detailGeneration.current) return;
+      docCache.current.delete(place.id);
+      setDetailStatus(error instanceof Error ? error.message : '장소 정보를 확인하지 못했습니다.');
     }
   };
 
+  useEffect(() => {
+    detailGeneration.current++;
+    setSelectedPlace(null); setModalPlace(null); setIsModalOpen(false); setDetailStatus(null);
+  }, [isAdminRoute, selectedRegion, selectedCategory, user?.uid]);
+
+  useEffect(() => {
+    const clear = () => {
+      detailGeneration.current++;
+      setSelectedPlace(null); setModalPlace(null); setIsModalOpen(false); setDetailStatus(null);
+    };
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') { clear(); return; }
+      if (isModalOpen && modalPlace) void handleOpenDetail(modalPlace);
+      else clear();
+    };
+    window.addEventListener(PLACE_DATA_CHANGED, clear);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener(PLACE_DATA_CHANGED, clear);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [isModalOpen, modalPlace, docCache]);
+
   const handleResetHome = () => {
+    detailGeneration.current++;
+    setDetailStatus(null);
     navigation.goHome();
     setSelectedRegion('all');
     setSelectedCategory('all');
@@ -209,6 +243,7 @@ export default function App() {
         </div>
       )}
 
+      {detailStatus && <div role="status" className="mx-auto my-3 w-full max-w-7xl rounded-xl bg-amber-50 p-4 text-sm">{detailStatus}<button className="ml-3 font-bold" onClick={() => { detailGeneration.current++; setDetailStatus(null); }}>닫기</button></div>}
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
         
@@ -535,7 +570,7 @@ export default function App() {
       <PlaceDetailModal
         place={modalPlace}
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => { detailGeneration.current++; setModalPlace(null); setIsModalOpen(false); }}
         isSaved={modalPlace ? savedPlaceIds.includes(modalPlace.id) : false}
         onToggleSave={toggleSavePlace}
       />

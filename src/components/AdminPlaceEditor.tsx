@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ArrowLeft, CheckCircle2, ImageOff, Search, ShieldCheck } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { adaptPlace, adaptPlaceDocs, PLACEHOLDER_IMAGE } from '../lib/placeAdapter';
+import { adaptPlace, PLACEHOLDER_IMAGE } from '../lib/placeAdapter';
+import { AdminCreatePlace, AdminRegionManager } from './AdminPlaceCrud';
+import { invalidatePlaceQueries } from '../lib/placeInvalidation';
 import {
   ADMIN_FIELD_DEFINITIONS,
   ADMIN_PLACE_QUERY_LIMIT,
@@ -36,7 +38,7 @@ function EditorInput({ definition, value, disabled, onChange }: { definition: Ad
       : definition.kind === 'triState' && ['carrierRequired', 'leashRequired'].includes(definition.key) ? REQUIRED_OPTIONS
         : definition.kind === 'triState' ? TRI_OPTIONS
           : null;
-  if (options) return <select {...common}>{options.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>;
+  if (options) return <select {...common}><option value="" disabled>선택해 주세요</option>{options.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>;
   if (definition.kind === 'textarea' || definition.kind === 'list') return <textarea {...common} rows={definition.kind === 'list' ? 3 : 4} placeholder={definition.placeholder ?? (definition.kind === 'list' ? '한 줄에 하나씩 입력' : undefined)} />;
   return <input {...common} type={definition.kind === 'number' ? 'number' : definition.kind === 'url' ? 'url' : 'text'} step={definition.kind === 'number' ? 'any' : undefined} placeholder={definition.placeholder} />;
 }
@@ -69,6 +71,8 @@ export function AdminUnchangedSelectionNotice({ selections }: { selections: Admi
 }
 
 export default function AdminPlaceEditor({ uid, onHome }: Props) {
+  const [mode, setMode] = useState<'name' | 'region' | 'create'>('name');
+  const [crudBusy, setCrudBusy] = useState(false);
   const [queryText, setQueryText] = useState('');
   const [results, setResults] = useState<Awaited<ReturnType<typeof searchAdminPlacesByName>>>([]);
   const [loaded, setLoaded] = useState<AdminLoadedPlace | null>(null);
@@ -153,6 +157,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
     setBusy(true); setMessage(null); setActionError(null);
     try {
       await saveAdminPlace(db, loaded, plan, uid);
+      invalidatePlaceQueries();
     } catch (error) {
       setActionError(error instanceof Error ? `저장하지 못했습니다. 선택한 항목은 반영되지 않았습니다: ${error.message}` : '저장하지 못했습니다. 선택한 항목은 반영되지 않았습니다.');
       setBusy(false);
@@ -176,29 +181,34 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-amber-600" /><h2 className="text-xl font-black text-slate-900">장소 정보 관리</h2></div>
-          <p className="mt-1 text-xs text-slate-500">장소명 접두검색 → 장소 선택 → 수정 항목 선택 → 변경 확인 → 저장</p>
+          <p className="mt-1 text-xs text-slate-500">장소를 등록하고 정보를 수정하거나, 지역별로 삭제·복원할 수 있습니다.</p>
         </div>
-        <button onClick={onHome} className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><ArrowLeft className="h-4 w-4" />홈으로</button>
+        <button disabled={busy || crudBusy} onClick={onHome} className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><ArrowLeft className="h-4 w-4" />홈으로</button>
       </div>
 
-      <section className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
+      <nav aria-label="관리 방식" className="mb-4 flex flex-wrap gap-2">
+        {([['name', '업체명 검색'], ['region', '지역·업종 관리'], ['create', '새 장소 등록']] as const).map(([value, label]) => <button key={value} disabled={busy || crudBusy} aria-pressed={mode === value} onClick={() => { setMode(value); clearLoadedPlace(); setResults([]); setMessage(null); }} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold aria-pressed:bg-amber-100">{label}</button>)}
+      </nav>
+      {mode === 'create' && <AdminCreatePlace uid={uid} Input={EditorInput} onBusyChange={setCrudBusy} onClose={() => setMode('name')} onCreated={(id) => { setMode('name'); void selectPlace(id); }} />}
+      {mode === 'region' && <AdminRegionManager onBusyChange={setCrudBusy} onEdit={(id) => void selectPlace(id)} />}
+      {mode === 'name' && <section className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
         <form onSubmit={runSearch} className="flex gap-2">
           <label className="sr-only" htmlFor="admin-place-search">업체명 검색</label>
           <input id="admin-place-search" value={queryText} onChange={(event) => setQueryText(event.target.value)} maxLength={80} placeholder="업체명 접두어를 입력하세요" className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-amber-500" />
           <button disabled={busy} aria-busy={busy} className="inline-flex cursor-pointer items-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"><Search className="h-4 w-4" />{busy ? '처리 중…' : '검색'}</button>
         </form>
-        <p className="mt-2 text-[11px] text-slate-500">비어 있거나 80자를 넘는 검색은 실행하지 않으며, Firestore `name` 접두검색 결과를 최대 {ADMIN_PLACE_QUERY_LIMIT}개만 읽습니다.</p>
+        <p className="mt-2 text-[11px] text-slate-500">장소명이 입력한 글자로 시작하는 결과를 최대 {ADMIN_PLACE_QUERY_LIMIT}개 표시합니다. 삭제된 장소도 찾을 수 있습니다.</p>
         {results.length > 0 && (
           <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
-            {adaptPlaceDocs(results).map((place) => (
+            {results.map((document) => { const place = adaptPlace(document); return (
               <li key={place.id}><button type="button" disabled={busy} onClick={() => void selectPlace(place.id)} className="w-full cursor-pointer px-3 py-3 text-left hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50">
-                <span className="block text-sm font-bold text-slate-900">{place.name}</span>
+                <span className="block text-sm font-bold text-slate-900">{place.name} · {document.data.publicationStatus === 'HIDDEN' ? '삭제됨' : '정상'}</span>
                 <span className="mt-0.5 block text-xs text-slate-500">{place.id} · {place.roadAddress || place.address || '주소 미확인'} · {place.category}</span>
               </button></li>
-            ))}
+            ); })}
           </ul>
         )}
-      </section>
+      </section>}
 
       {message && <div role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-slate-700">{message}</div>}
 

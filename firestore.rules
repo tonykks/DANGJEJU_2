@@ -54,53 +54,59 @@ service cloud.firestore {
         allowedBreeds, allowedSizes, sizeDescription, spacePolicy, spaceDescription,
         leashDescription, petFee, petFeeDescription, policy.otherPetPolicy
       ];
-      return policy is map
-        && policy.size() == 19
-        && policy.petInformationStatus in ['KTO_OVERLAY_FOUND', 'ADMIN_CONFIRMED', 'UNKNOWN']
-        && validTriStates([
+      return [
+          policy is map,
+          policy.size() == 19,
+          policy.petInformationStatus in ['KTO_OVERLAY_FOUND', 'ADMIN_CONFIRMED', 'UNKNOWN'],
+          validTriStates([
           policy.petAcceptance, policy.smallDogAllowed, policy.mediumDogAllowed,
           policy.largeDogAllowed, policy.indoorAllowed, policy.outdoorAllowed,
           policy.carrierRequired, policy.leashRequired, policy.offLeashZoneAvailable
-        ])
-        && (nullableValues.hasOnly([null]) || (
-          !nullableValues.hasAny([null]) ? (
-            allowedBreeds is list && allowedBreeds.size() <= 30
-            && allowedSizes is list && allowedSizes.size() <= 30
-            && sizeDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-            && spacePolicy.matches('(?s)^.{0,500}$')
-            && spaceDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-            && leashDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-            && petFee is int && petFee >= 0 && petFee <= 1000000
-            && petFeeDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-            && policy.otherPetPolicy.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-          ) : (
-            ((allowedBreeds is list && allowedBreeds.size() <= 30) || allowedBreeds == null)
-            && ((allowedSizes is list && allowedSizes.size() <= 30) || allowedSizes == null)
-            && ((sizeDescription is string && sizeDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')) || sizeDescription == null)
-            && ((spacePolicy is string && spacePolicy.matches('(?s)^.{0,500}$')) || spacePolicy == null)
-            && ((spaceDescription is string && spaceDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')) || spaceDescription == null)
-            && ((leashDescription is string && leashDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')) || leashDescription == null)
-            && ((petFee is int && petFee >= 0 && petFee <= 1000000) || petFee == null)
-            && ((petFeeDescription is string && petFeeDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')) || petFeeDescription == null)
-            && ((policy.otherPetPolicy is string
-              && policy.otherPetPolicy.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'))
-              || policy.otherPetPolicy == null)
-          )
-        ));
+        ]),
+          (nullableValues.hasOnly([null]) || (
+          !nullableValues.hasAny([null]) ? ([
+          allowedBreeds is list,
+          allowedBreeds.size() <= 30,
+          allowedSizes is list,
+          allowedSizes.size() <= 30,
+          sizeDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          spacePolicy.matches('(?s)^.{0,500}$'),
+          spaceDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          leashDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          petFee is int,
+          petFee >= 0,
+          petFee <= 1000000,
+          petFeeDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          policy.otherPetPolicy.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
+        ].hasOnly([true])) : ([
+            allowedBreeds == null || (allowedBreeds is list && allowedBreeds.size() <= 30),
+            allowedSizes == null || (allowedSizes is list && allowedSizes.size() <= 30),
+            sizeDescription == null || (sizeDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')),
+            spacePolicy == null || (spacePolicy.matches('(?s)^.{0,500}$')),
+            spaceDescription == null || (spaceDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')),
+            leashDescription == null || (leashDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')),
+            petFeeDescription == null || (petFeeDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')),
+            policy.otherPetPolicy == null || (policy.otherPetPolicy.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')),
+            petFee == null || (petFee is int && petFee >= 0 && petFee <= 1000000)
+          ].hasOnly([true]))
+        ))
+        ].hasOnly([true]);
     }
 
     function validAmenities(data) {
       let amenity = data.amenities;
       let parkingDescription = amenity.parkingDescription;
-      return amenity is map
-        && amenity.size() == 7
-        && validTriStates([
+      return [
+          amenity is map,
+          amenity.size() == 7,
+          validTriStates([
           amenity.freeParking, amenity.dogMenu, amenity.waterBowlProvided,
           amenity.wasteBagsProvided, amenity.fencedYard, amenity.photoZone
-        ])
-        && ((parkingDescription is string
+        ]),
+          ((parkingDescription is string
           && parkingDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'))
-          || parkingDescription == null);
+          || parkingDescription == null)
+        ].hasOnly([true]);
     }
 
     function validPetDetails(details) {
@@ -112,15 +118,30 @@ service cloud.firestore {
         ])
         && (details.size() == 9
           ? validCompletePetDetails(details)
-          : optionalText(details, 'acmpyTypeCd', 4000)
-            && optionalText(details, 'acmpyNeedMtr', 4000)
-            && optionalText(details, 'acmpyPsblCpam', 4000)
-            && optionalText(details, 'etcAcmpyInfo', 4000)
-            && optionalText(details, 'relaAcdntRiskMtr', 4000)
-            && optionalText(details, 'relaFrnshPrdlst', 4000)
-            && optionalText(details, 'relaPosesFclty', 4000)
-            && optionalText(details, 'relaPurcPrdlst', 4000)
-            && optionalText(details, 'relaRntlPrdlst', 4000));
+          : validSparsePetDetails(details));
+    }
+
+    function validSparsePetDetails(details) {
+      let acmpyTypeCd = details.get('acmpyTypeCd', null);
+      let acmpyNeedMtr = details.get('acmpyNeedMtr', null);
+      let acmpyPsblCpam = details.get('acmpyPsblCpam', null);
+      let etcAcmpyInfo = details.get('etcAcmpyInfo', null);
+      let relaAcdntRiskMtr = details.get('relaAcdntRiskMtr', null);
+      let relaFrnshPrdlst = details.get('relaFrnshPrdlst', null);
+      let relaPosesFclty = details.get('relaPosesFclty', null);
+      let relaPurcPrdlst = details.get('relaPurcPrdlst', null);
+      let relaRntlPrdlst = details.get('relaRntlPrdlst', null);
+      return [
+        acmpyTypeCd == null || acmpyTypeCd.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+        acmpyNeedMtr == null || acmpyNeedMtr.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+        acmpyPsblCpam == null || acmpyPsblCpam.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+        etcAcmpyInfo == null || etcAcmpyInfo.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+        relaAcdntRiskMtr == null || relaAcdntRiskMtr.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+        relaFrnshPrdlst == null || relaFrnshPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+        relaPosesFclty == null || relaPosesFclty.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+        relaPurcPrdlst == null || relaPurcPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+        relaRntlPrdlst == null || relaRntlPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
+      ].hasOnly([true]);
     }
 
     function validCompletePetDetails(details) {
@@ -134,17 +155,18 @@ service cloud.firestore {
       let relaPurcPrdlst = details.relaPurcPrdlst;
       let relaRntlPrdlst = details.relaRntlPrdlst;
       let hasNull = details.values().hasAny([null]);
-      return !hasNull ? (
-        acmpyTypeCd.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-        && acmpyNeedMtr.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-        && acmpyPsblCpam.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-        && etcAcmpyInfo.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-        && relaAcdntRiskMtr.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-        && relaFrnshPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-        && relaPosesFclty.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-        && relaPurcPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-        && relaRntlPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
-      ) : (
+      return [acmpyTypeCd, acmpyNeedMtr, acmpyPsblCpam, etcAcmpyInfo, relaAcdntRiskMtr,
+        relaFrnshPrdlst, relaPosesFclty, relaPurcPrdlst, relaRntlPrdlst].hasOnly(['']) || (!hasNull ? ([
+          acmpyTypeCd.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          acmpyNeedMtr.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          acmpyPsblCpam.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          etcAcmpyInfo.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          relaAcdntRiskMtr.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          relaFrnshPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          relaPosesFclty.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          relaPurcPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$'),
+          relaRntlPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')
+        ].hasOnly([true])) : (
         ((acmpyTypeCd is string && acmpyTypeCd.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')) || acmpyTypeCd == null)
         && ((acmpyNeedMtr is string && acmpyNeedMtr.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')) || acmpyNeedMtr == null)
         && ((acmpyPsblCpam is string && acmpyPsblCpam.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')) || acmpyPsblCpam == null)
@@ -154,7 +176,7 @@ service cloud.firestore {
         && ((relaPosesFclty is string && relaPosesFclty.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')) || relaPosesFclty == null)
         && ((relaPurcPrdlst is string && relaPurcPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')) || relaPurcPrdlst == null)
         && ((relaRntlPrdlst is string && relaRntlPrdlst.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')) || relaRntlPrdlst == null)
-      );
+      ));
     }
 
     function validAdminOverrides(data) {
@@ -168,11 +190,13 @@ service cloud.firestore {
     function validCompleteAdminOverrides(data) {
       let overrides = data.adminOverrides;
       let details = overrides.petDetails;
-      return overrides is map
-        && overrides.size() == 1
-        && details is map
-        && details.size() == 9
-        && validCompletePetDetails(details);
+      return [
+          overrides is map,
+          overrides.size() == 1,
+          details is map,
+          details.size() == 9,
+          validCompletePetDetails(details)
+        ].hasOnly([true]);
     }
 
     function rootEditableFieldNames() {
@@ -341,9 +365,9 @@ service cloud.firestore {
     }
 
     function validSingleClearedValue(data, field) {
-      return (field in stringClearableRootFieldNames() && data[field] == '')
-        || (field in ['latitude', 'longitude'] && data[field] == null)
-        || (field in ['tags', 'recommendedPoints', 'cautionNotes'] && data[field] == []);
+      // Every caller has already checked the complete clearable-field allowlist.
+      return data[field] == (field in ['latitude', 'longitude'] ? null
+        : field in ['tags', 'recommendedPoints', 'cautionNotes'] ? [] : '');
     }
 
     function validListedClearedValues(data, clearedList) {
@@ -379,13 +403,34 @@ service cloud.firestore {
         && data.cautionNotes == [];
     }
 
+    function validManyClearedValues(data, cleared) {
+      return [
+        !cleared.hasAny(['address']) || data.address == '',
+        !cleared.hasAny(['roadAddress']) || data.roadAddress == '',
+        !cleared.hasAny(['latitude']) || data.latitude == null,
+        !cleared.hasAny(['longitude']) || data.longitude == null,
+        !cleared.hasAny(['phone']) || data.phone == '',
+        !cleared.hasAny(['primaryImageUrl']) || data.primaryImageUrl == '',
+        !cleared.hasAny(['secondaryImageUrl']) || data.secondaryImageUrl == '',
+        !cleared.hasAny(['shortDescription']) || data.shortDescription == '',
+        !cleared.hasAny(['fullDescription']) || data.fullDescription == '',
+        !cleared.hasAny(['parkingInfo']) || data.parkingInfo == '',
+        !cleared.hasAny(['businessHours']) || data.businessHours == '',
+        !cleared.hasAny(['closedDays']) || data.closedDays == '',
+        !cleared.hasAny(['instagramUrl']) || data.instagramUrl == '',
+        !cleared.hasAny(['tags']) || data.tags == [],
+        !cleared.hasAny(['recommendedPoints']) || data.recommendedPoints == [],
+        !cleared.hasAny(['cautionNotes']) || data.cautionNotes == []
+      ].hasOnly([true]);
+    }
+
     function validClearedFields(data, clearedList) {
       let cleared = clearedList.toSet();
       return cleared.hasOnly(clearableRootFieldNames())
         && (cleared.size() == 16
           ? validAllClearedValues(data)
           : clearedList.size() <= 15
-            && validListedClearedValues(data, clearedList));
+            && (clearedList.size() > 4 ? validManyClearedValues(data, cleared) : validListedClearedValues(data, clearedList)));
     }
 
     function validSingleFieldClearedAudit(data, oldData, admin) {
@@ -417,6 +462,19 @@ service cloud.firestore {
         || (!factsChanged && !statusChanged);
     }
 
+    function validPartialClearedAudit(data, oldData, admin, displayAffected) {
+      let cleared = admin.clearedFields.toSet();
+      let oldCleared = oldData.get('manualAdmin', {}).get('clearedFields', []).toSet();
+      let delta = cleared.difference(oldCleared).union(oldCleared.difference(cleared));
+      let touched = cleared.intersection(displayAffected);
+      // Unchanged clear fields retain their already-validated stored values.
+      // Only changed root fields may add/remove clear metadata.
+      return admin.clearedFields.size() == cleared.size()
+        && cleared.hasOnly(clearableRootFieldNames())
+        && delta.hasOnly(displayAffected)
+        && (touched.size() == 0 || validManyClearedValues(data, touched));
+    }
+
     function validPetProvenance(data, oldData, affected) {
       // Any admin override is a pet fact edit, so avoid recomputing the policy diff.
       return affected.hasAny(['adminOverrides'])
@@ -429,31 +487,26 @@ service cloud.firestore {
       let changedFields = admin.changedFields.toSet();
       let changedTopLevel = admin.changedTopLevel.toSet();
       let managedFields = admin.managedFields.toSet();
-      let oldManagedFields = 'manualAdmin' in oldData && 'managedFields' in oldData.manualAdmin
-        ? oldData.manualAdmin.managedFields.toSet()
-        : [].toSet();
-      return admin is map
-        && admin.size() == 6
-        && admin.source == 'ADMIN_UI'
-        && admin.updatedAt == request.time
-        && (admin.changedFields.size() == 54
+      let oldManagedFields = priorManagedFields(oldData);
+      return [
+          validAuditEnvelope(admin, oldData),
+          admin.source == 'ADMIN_UI',
+          admin.updatedAt == request.time,
+          (admin.changedFields.size() == 54
           ? admin.changedFields == allEditableFieldNames()
-            && admin.managedFields == admin.changedFields
+            && managedFields == oldManagedFields.union(changedFields)
           : admin.changedFields.size() == 53
             && admin.changedFields == allUserVisibleFieldNames()
-            && admin.managedFields is list
             && admin.managedFields.size() <= 60
-            && managedFields == oldManagedFields.union(changedFields))
-        && admin.changedTopLevel is list
-        && admin.changedTopLevel.size() == changedTopLevel.size()
-        && changedTopLevel == displayAffected
-        // The caller already established that displayAffected has exactly 22 entries.
-        && displayAffected.hasOnly(allTopLevelEditableFieldNames())
-        && (admin.clearedFields == [] || (
-          admin.clearedFields is list
-          && admin.clearedFields.size() <= 60
+            && managedFields == oldManagedFields.union(changedFields)),
+          admin.changedTopLevel.size() == changedTopLevel.size(),
+          changedTopLevel == displayAffected,
+          displayAffected.hasOnly(allTopLevelEditableFieldNames()),
+          (admin.clearedFields == [] || (
+          admin.clearedFields.size() <= 60
           && validClearedFields(data, admin.clearedFields)
-        ));
+        ))
+        ].hasOnly([true]);
     }
 
     function validPartialManualAdmin(data, oldData, displayAffected) {
@@ -461,30 +514,29 @@ service cloud.firestore {
       let changedFields = admin.changedFields.toSet();
       let changedTopLevel = admin.changedTopLevel.toSet();
       let managedFields = admin.managedFields.toSet();
-      let oldManagedFields = 'manualAdmin' in oldData && 'managedFields' in oldData.manualAdmin
-        ? oldData.manualAdmin.managedFields.toSet()
-        : [].toSet();
-      return admin is map
-        && admin.size() == 6
-        && admin.source == 'ADMIN_UI'
-        && admin.updatedAt == request.time
-        && admin.changedFields is list
-        && admin.changedFields.size() > 0
-        && admin.changedFields.size() <= 60
-        && admin.changedTopLevel is list
-        && admin.changedTopLevel.size() > 0
-        && admin.changedTopLevel.size() == changedTopLevel.size()
-        && changedTopLevel == displayAffected
-        && validPartialChangedFieldNames(changedFields, changedTopLevel)
-        && admin.clearedFields is list
-        && admin.clearedFields.size() <= 60
-        && (admin.changedFields.size() == 1
+      let oldManagedFields = priorManagedFields(oldData);
+      return [
+          admin is map,
+          validAuditEnvelope(admin, oldData),
+          admin.source == 'ADMIN_UI',
+          admin.updatedAt == request.time,
+          admin.changedFields is list,
+          admin.changedFields.size() > 0,
+          admin.changedFields.size() <= 60,
+          admin.changedTopLevel is list,
+          admin.changedTopLevel.size() > 0,
+          admin.changedTopLevel.size() == changedTopLevel.size(),
+          changedTopLevel == displayAffected,
+          validPartialChangedFieldNames(changedFields, changedTopLevel),
+          admin.clearedFields is list,
+          admin.clearedFields.size() <= 60,
+          (admin.changedFields.size() == 1
           ? validSingleFieldClearedAudit(data, oldData, admin)
-          : admin.clearedFields.size() == 0
-            || validClearedFields(data, admin.clearedFields))
-        && admin.managedFields is list
-        && admin.managedFields.size() <= 60
-        && managedFields == oldManagedFields.union(changedFields);
+          : validPartialClearedAudit(data, oldData, admin, displayAffected)),
+          admin.managedFields is list,
+          admin.managedFields.size() <= 60,
+          managedFields == oldManagedFields.union(changedFields)
+        ].hasOnly([true]);
     }
 
     function validSearch(data, oldData) {
@@ -493,33 +545,37 @@ service cloud.firestore {
       let petScore = search.petScore;
       let petTier = search.petTier;
       let petTierRank = petTier == 'RICH' ? 3 : petTier == 'PARTIAL' ? 2 : petTier == 'BASIC' ? 1 : 0;
-      return search is map
-        && search.size() == 14
-        && search.version == 1
-        && search.scoreVersion == 'hank-place-field-audit-v1'
-        && search.region in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN']
-        && search.category in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT', 'UNKNOWN']
-        && search.regionBasis in ['SERVICE_REGION', 'ADDRESS_EAST', 'ADDRESS_WEST', 'MUNICIPALITY', 'UNKNOWN']
-        && search.categoryBasis in ['SERVICE_CATEGORY', 'KTO_CONTENT_TYPE', 'KTO_CAT3', 'TITLE_FALLBACK', 'UNKNOWN']
-        && basicScore is int && basicScore in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-        && petScore is int && petScore in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+      return [
+          search is map,
+          search.size() == 14,
+          search.version == 1,
+          search.scoreVersion == 'hank-place-field-audit-v1',
+          search.region in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN'],
+          search.category in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT', 'UNKNOWN'],
+          search.regionBasis in ['SERVICE_REGION', 'ADDRESS_EAST', 'ADDRESS_WEST', 'MUNICIPALITY', 'UNKNOWN'],
+          search.categoryBasis in ['SERVICE_CATEGORY', 'KTO_CONTENT_TYPE', 'KTO_CAT3', 'TITLE_FALLBACK', 'UNKNOWN'],
+          basicScore is int,
+          (basicScore >= 0 && basicScore <= 15),
+          petScore is int,
+          (petScore >= 0 && petScore <= 9),
         // Numeric equality permits floats, so preserve the explicit integer check.
-        && search.totalScore is int
-        && search.totalScore == basicScore + petScore
+          search.totalScore is int,
+          search.totalScore == basicScore + petScore,
         // The exhaustive branches below are the petTier enum validation.
-        && ((petTier == 'RICH' && petScore >= 5)
+          ((petTier == 'RICH' && petScore >= 5)
           || (petTier == 'PARTIAL' && petScore >= 2 && petScore <= 4)
           || (petTier == 'BASIC' && petScore <= 1)
-          || (petTier == 'UNKNOWN' && petScore == 0))
-        && search.petSortKey == petTierRank * 10000 + petScore * 100 + basicScore
-        && search.primarySourceId is string
-        && search.primarySourceId == oldData.search.primarySourceId
+          || (petTier == 'UNKNOWN' && petScore == 0)),
+          search.petSortKey == petTierRank * 10000 + petScore * 100 + basicScore,
+          search.primarySourceId is string,
+          search.primarySourceId == oldData.search.primarySourceId,
         // matches() rejects non-string values while enforcing the exact hash shape.
-        && search.inputHash.matches('^[a-f0-9]{64}$')
+          search.inputHash.matches('^[a-f0-9]{64}$'),
         // Equality with request.time also enforces the timestamp type.
-        && search.derivedAt == request.time
-        && (!('serviceCategory' in data) || !(data.serviceCategory is string) || search.category == data.serviceCategory)
-        && (!('regionArea' in data) || !(data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST']) || search.region == data.regionArea);
+          search.derivedAt == request.time,
+          (!('serviceCategory' in data) || !(data.serviceCategory is string) || search.category == data.serviceCategory),
+          (!('regionArea' in data) || !(data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST']) || search.region == data.regionArea)
+        ].hasOnly([true]);
     }
 
     function validCompleteSearch(data, oldData) {
@@ -532,16 +588,15 @@ service cloud.firestore {
       let primarySourceId = search.primarySourceId;
       let petTierRank = petTier == 'RICH' ? 3 : petTier == 'PARTIAL' ? 2 : petTier == 'BASIC' ? 1 : 0;
       return [
-          search is map,
           search.size() == 14,
           search.version == 1,
           search.scoreVersion == 'hank-place-field-audit-v1',
           region in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN'],
           category in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT', 'UNKNOWN'],
-          search.regionBasis in ['SERVICE_REGION', 'ADDRESS_EAST', 'ADDRESS_WEST', 'MUNICIPALITY', 'UNKNOWN'],
-          search.categoryBasis in ['SERVICE_CATEGORY', 'KTO_CONTENT_TYPE', 'KTO_CAT3', 'TITLE_FALLBACK', 'UNKNOWN'],
-          basicScore is int, basicScore in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-          petScore is int, petScore in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+          search.regionBasis == 'SERVICE_REGION',
+          search.categoryBasis == 'SERVICE_CATEGORY',
+          basicScore is int, (basicScore >= 0 && basicScore <= 15),
+          petScore is int, (petScore >= 0 && petScore <= 9),
           search.totalScore is int,
           search.totalScore == basicScore + petScore,
           (petTier == 'RICH' && petScore >= 5)
@@ -582,6 +637,16 @@ service cloud.firestore {
         ].hasOnly([true]);
     }
 
+    function validCompleteClearedPlaceDisplay(data) {
+      // Caller already validated all 16 clear values in validCompleteManualAdmin.
+      return [
+          data.name.matches('(?s)^.{1,100}$'),
+          data.coordinateQualityStatus == 'ADMIN_CONFIRMED',
+          data.petPolicy.petInformationStatus == 'ADMIN_CONFIRMED',
+          validPetPolicy(data), validAmenities(data), validCompleteAdminOverrides(data)
+        ].hasOnly([true]);
+    }
+
     function validCompletePlaceDisplay(data) {
       let name = data.name;
       let address = data.address;
@@ -611,45 +676,49 @@ service cloud.firestore {
     }
 
     function validPartialPlaceDisplay(data, oldData, affected) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
-        && (affected.hasAny(['serviceCategory'])
+      return [
+          data.name is string,
+          data.name.size() > 0,
+          data.name.size() <= 100,
+          (affected.hasAny(['serviceCategory'])
           ? data.serviceCategory is string && data.serviceCategory in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT']
           : !('serviceCategory' in data) || data.serviceCategory == null
-            || (data.serviceCategory is string && data.serviceCategory in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT']))
-        && (affected.hasAny(['regionArea'])
+            || (data.serviceCategory is string && data.serviceCategory in ['ATTRACTION', 'CAFE', 'FOOD', 'SHOPPING', 'STAY', 'LEISURE', 'CULTURE', 'EVENT'])),
+          (affected.hasAny(['regionArea'])
           ? data.regionArea is string && data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN']
           : !('regionArea' in data) || data.regionArea == null
-            || (data.regionArea is string && data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN']))
-        && (data.address == oldData.address || (data.address is string && data.address.size() <= 500))
-        && (data.roadAddress == oldData.roadAddress || (data.roadAddress is string && data.roadAddress.size() <= 500))
-        && (data.phone == oldData.phone || (data.phone is string && data.phone.size() <= 30))
-        && (data.primaryImageUrl == oldData.primaryImageUrl || (data.primaryImageUrl is string && (
+            || (data.regionArea is string && data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST', 'UNKNOWN'])),
+          (data.address == oldData.address || (data.address is string && data.address.size() <= 500)),
+          (data.roadAddress == oldData.roadAddress || (data.roadAddress is string && data.roadAddress.size() <= 500)),
+          (data.phone == oldData.phone || (data.phone is string && data.phone.size() <= 30)),
+          (data.primaryImageUrl == oldData.primaryImageUrl || (data.primaryImageUrl is string && (
           data.primaryImageUrl == '' || (data.primaryImageUrl.size() <= 500 && data.primaryImageUrl.matches('^https?://.+$'))
-        )))
-        && (data.secondaryImageUrl == oldData.secondaryImageUrl || (data.secondaryImageUrl is string && (
+        ))),
+          (data.secondaryImageUrl == oldData.secondaryImageUrl || (data.secondaryImageUrl is string && (
           data.secondaryImageUrl == '' || (data.secondaryImageUrl.size() <= 500 && data.secondaryImageUrl.matches('^https?://.+$'))
-        )))
-        && (data.shortDescription == oldData.shortDescription || (data.shortDescription is string && data.shortDescription.size() <= 500))
-        && (data.fullDescription == oldData.fullDescription || (data.fullDescription is string && data.fullDescription.size() <= 4000))
-        && (data.parkingInfo == oldData.parkingInfo || (data.parkingInfo is string && data.parkingInfo.size() <= 4000))
-        && (data.businessHours == oldData.businessHours || (data.businessHours is string && data.businessHours.size() <= 4000))
-        && (data.closedDays == oldData.closedDays || (data.closedDays is string && data.closedDays.size() <= 500))
-        && (data.instagramUrl == oldData.instagramUrl || (data.instagramUrl is string && (
+        ))),
+          (data.shortDescription == oldData.shortDescription || (data.shortDescription is string && data.shortDescription.size() <= 500)),
+          (data.fullDescription == oldData.fullDescription || (data.fullDescription is string && data.fullDescription.size() <= 4000)),
+          (data.parkingInfo == oldData.parkingInfo || (data.parkingInfo is string && data.parkingInfo.size() <= 4000)),
+          (data.businessHours == oldData.businessHours || (data.businessHours is string && data.businessHours.size() <= 4000)),
+          (data.closedDays == oldData.closedDays || (data.closedDays is string && data.closedDays.size() <= 500)),
+          (data.instagramUrl == oldData.instagramUrl || (data.instagramUrl is string && (
           data.instagramUrl == '' || (data.instagramUrl.size() <= 500
             && data.instagramUrl.matches('^https?://([A-Za-z0-9-]+\\.)*instagram\\.com([/:?#].*)?$'))
-        )))
-        && (data.tags == oldData.tags || (data.tags is list && data.tags.size() <= 30))
-        && (data.recommendedPoints == oldData.recommendedPoints || (data.recommendedPoints is list && data.recommendedPoints.size() <= 30))
-        && (data.cautionNotes == oldData.cautionNotes || (data.cautionNotes is list && data.cautionNotes.size() <= 30))
-        && ((data.latitude == oldData.latitude && data.longitude == oldData.longitude
+        ))),
+          (data.tags == oldData.tags || (data.tags is list && data.tags.size() <= 30)),
+          (data.recommendedPoints == oldData.recommendedPoints || (data.recommendedPoints is list && data.recommendedPoints.size() <= 30)),
+          (data.cautionNotes == oldData.cautionNotes || (data.cautionNotes is list && data.cautionNotes.size() <= 30)),
+          ((data.latitude == oldData.latitude && data.longitude == oldData.longitude
           && data.coordinateQualityStatus == oldData.coordinateQualityStatus) || (
           (data.latitude == null || (data.latitude is number && data.latitude >= 32.5 && data.latitude <= 34.2))
           && (data.longitude == null || (data.longitude is number && data.longitude >= 125.5 && data.longitude <= 127.2))
           && data.coordinateQualityStatus == 'ADMIN_CONFIRMED'
-        ))
-        && (!affected.hasAny(['petPolicy']) || validPetPolicy(data))
-        && (!affected.hasAny(['amenities']) || validAmenities(data))
-        && (!affected.hasAny(['adminOverrides']) || validAdminOverrides(data));
+        )),
+          (!affected.hasAny(['petPolicy']) || validPetPolicy(data)),
+          (!affected.hasAny(['amenities']) || validAmenities(data)),
+          (!affected.hasAny(['adminOverrides']) || validAdminOverrides(data))
+        ].hasOnly([true]);
     }
 
     function validPlaceUpdate(placeId) {
@@ -665,7 +734,7 @@ service cloud.firestore {
         && data.updatedAt == request.time
         && (displayAffected.size() == 22
           ? validCompleteManualAdmin(data, oldData, displayAffected)
-            && validCompletePlaceDisplay(data)
+            && (data.manualAdmin.clearedFields.size() == 16 ? validCompleteClearedPlaceDisplay(data) : validCompletePlaceDisplay(data))
             && validCompleteSearch(data, oldData)
           : affected.hasAll(['manualAdmin', 'search', 'updatedAt'])
             && validPartialManualAdmin(data, oldData, displayAffected)
@@ -675,6 +744,173 @@ service cloud.firestore {
               || validPetProvenance(data, oldData, affected))
             && validPartialPlaceDisplay(data, oldData, affected)
             && validSearch(data, oldData));
+    }
+
+    function priorManagedFields(data) {
+      let audit = data.get('manualAdmin', {});
+      let legacy = audit.get('changedFields', []).toSet().union(audit.get('clearedFields', []).toSet());
+      return 'managedFields' in audit ? audit.managedFields.toSet().union(legacy)
+        : legacy.intersection(allEditableFieldNames().toSet().union(['publicationStatus'].toSet()));
+    }
+
+    function validAuditEnvelope(admin, oldData) {
+      let previous = oldData.get('manualAdmin', {}).get('previousPublicationStatus', null);
+      return previous == null
+        ? admin.size() == 6 && !('previousPublicationStatus' in admin)
+        : admin.size() == 7 && admin.previousPublicationStatus == previous
+          && previous in ['DRAFT', 'PUBLISHED'] && oldData.publicationStatus == 'HIDDEN';
+    }
+
+    function validPublicationTransition(placeId) {
+      let data = request.resource.data;
+      let old = resource.data;
+      let audit = data.manualAdmin;
+      let oldAudit = old.get('manualAdmin', {});
+      return old.placeId == placeId && data.placeId == placeId
+        && data.diff(old).affectedKeys().hasOnly(['publicationStatus', 'manualAdmin', 'updatedAt'])
+        && data.updatedAt == request.time && audit.updatedAt == request.time
+        && audit.source == 'ADMIN_UI'
+        && audit.changedFields == ['publicationStatus'] && audit.changedTopLevel == ['publicationStatus']
+        && audit.managedFields is list && audit.managedFields.size() <= 60
+        && audit.managedFields.toSet() == priorManagedFields(old).union(['publicationStatus'].toSet())
+        && audit.clearedFields == oldAudit.get('clearedFields', [])
+        && (old.publicationStatus in ['DRAFT', 'PUBLISHED']
+          ? data.publicationStatus == 'HIDDEN' && audit.size() == 7
+            && audit.previousPublicationStatus == old.publicationStatus
+          : old.publicationStatus == 'HIDDEN' && audit.size() == 6
+            && !('previousPublicationStatus' in audit)
+            && oldAudit.previousPublicationStatus in ['DRAFT', 'PUBLISHED']
+            && data.publicationStatus == oldAudit.previousPublicationStatus);
+    }
+
+    function ownerPlaceId(placeId) {
+      return placeId.matches('^owner-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$');
+    }
+
+    function validOwnerSourceEnvelope(data, placeId, sourceId) {
+      return [
+          ownerPlaceId(placeId),
+          data.size() == 10,
+          data.placeId == placeId,
+          data.placeSourceId == sourceId,
+          placeId == 'owner-' + data.sourceId,
+          sourceId == 'owner-input-' + data.sourceId,
+          data.source == 'OWNER_INPUT',
+          data.sourceDataset == 'admin-place-create-v1',
+          data.sourceUpdatedAt == request.time,
+          data.importedAt == request.time,
+          data.verifiedAt == null,
+          data.verificationStatus == 'UNVERIFIED',
+          data.rawReference == null
+        ].hasOnly([true]);
+    }
+
+    function validOwnerSecondaryDisplay(data) {
+      let road = data.roadAddress;
+      let phone = data.phone;
+      let short = data.shortDescription;
+      let parking = data.parkingInfo;
+      let hours = data.businessHours;
+      let closed = data.closedDays;
+      let tags = data.tags;
+      let recommended = data.recommendedPoints;
+      let caution = data.cautionNotes;
+      return [road, phone, short, parking, hours, closed, tags, recommended, caution].hasOnly([null]) || [
+        (road == null || road.matches('(?s)^.{0,500}$')), (phone == null || phone.matches('(?s)^.{0,30}$')), (short == null || short.matches('(?s)^.{0,500}$')),
+        (parking == null || parking.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')), (hours == null || hours.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')), (closed == null || closed.matches('(?s)^.{0,500}$')),
+        tags == null || (tags is list && tags.size() <= 30),
+        recommended == null || (recommended is list && recommended.size() <= 30),
+        caution == null || (caution is list && caution.size() <= 30)
+      ].hasOnly([true]);
+    }
+
+    function validOwnerCreateDisplay(data) {
+      let name = data.name;
+      let address = data.address;
+      let image = data.primaryImageUrl;
+      let secondary = data.secondaryImageUrl;
+      let instagram = data.instagramUrl;
+      let latitude = data.latitude;
+      let longitude = data.longitude;
+      let status = data.petPolicy.petInformationStatus;
+      return [
+        name.matches('(?s)^.{1,100}$'),
+        (address == null || address.matches('(?s)^.{0,500}$')),
+        image == null || image.matches('^(|http://.{1,493}|https://.{1,492})$'),
+        secondary == null || secondary.matches('^(|http://.{1,493}|https://.{1,492})$'),
+        instagram == null || (instagram.size() <= 500 && instagram.matches('^$|^https?://([A-Za-z0-9-]+\\.)*instagram\\.com([/:?#].*)?$')),
+        (data.fullDescription == null || data.fullDescription.matches('(?s)^.{0,1000}.{0,1000}.{0,1000}.{0,1000}$')),
+        (latitude == null && longitude == null && data.coordinateQualityStatus == 'MISSING')
+          || (latitude is number && latitude >= 32.5 && latitude <= 34.2
+            && longitude is number && longitude >= 125.5 && longitude <= 127.2 && data.coordinateQualityStatus == 'ADMIN_CONFIRMED'),
+        data.regionArea in ['JEJU_CITY', 'SEOGWIPO_CITY', 'EAST', 'WEST'],
+        status in ['UNKNOWN', 'ADMIN_CONFIRMED'],
+        validOwnerSecondaryDisplay(data), validPetPolicy(data), validAmenities(data), validAdminOverrides(data)
+      ].hasOnly([true]);
+    }
+
+    function validCreateAudit(data) {
+      let audit = data.manualAdmin;
+      let fields = audit.changedFields.toSet();
+      let top = audit.changedTopLevel.toSet();
+      return [
+        audit.size() == 6, audit.source == 'ADMIN_UI', audit.updatedAt == request.time,
+        audit.managedFields == audit.changedFields, audit.clearedFields == [],
+        audit.changedFields.size() == fields.size(), audit.changedTopLevel.size() == top.size(),
+        fields.size() == 54
+          ? audit.changedFields == allEditableFieldNames() && audit.changedTopLevel == allTopLevelEditableFieldNames()
+          : fields.size() < 54 && fields.hasAll(['name', 'regionArea', 'serviceCategory']) && validPartialChangedFieldNames(fields, top)
+      ].hasOnly([true]);
+    }
+
+    function validOwnerPlaceCreate(placeId) {
+      let data = request.resource.data;
+      let sourceId = data.search.primarySourceId;
+      let sourcePath = /databases/$(database)/documents/places/$(placeId)/sources/$(sourceId);
+      let source = getAfter(sourcePath).data;
+      return [
+          ownerPlaceId(placeId),
+          data.placeId == placeId,
+          data.keys().hasOnly(allTopLevelEditableFieldNames().concat([
+          'placeId', 'publicationStatus', 'municipality', 'coordinateQualityStatus', 'createdAt', 'updatedAt', 'manualAdmin', 'search'
+        ])),
+          data.publicationStatus == 'PUBLISHED',
+          data.municipality == null,
+          data.createdAt == request.time,
+          data.updatedAt == request.time,
+          // The new source must pass its own full envelope rule in this same commit.
+          source.placeId == placeId,
+          source.placeSourceId == sourceId,
+          !exists(sourcePath),
+          (data.manualAdmin.changedFields.size() == 54 && data.latitude != null
+            ? validCompletePlaceDisplay(data) : validOwnerCreateDisplay(data)),
+          // The mandatory Source create validates the parent's audit envelope.
+          validCompleteSearch(data, data),
+          data.search.regionBasis == 'SERVICE_REGION',
+          data.search.categoryBasis == 'SERVICE_CATEGORY',
+          ((data.petPolicy.petInformationStatus == 'UNKNOWN' && data.search.petTier == 'UNKNOWN')
+          || (data.petPolicy.petInformationStatus == 'ADMIN_CONFIRMED' && data.search.petTier != 'UNKNOWN'))
+        ].hasOnly([true]);
+    }
+
+    function validOwnerSourceCreate(placeId, sourceId) {
+      let parentPath = /databases/$(database)/documents/places/$(placeId);
+      let parent = getAfter(parentPath).data;
+      return validOwnerSourceEnvelope(request.resource.data, placeId, sourceId)
+        && !exists(parentPath) && parent.placeId == placeId && parent.createdAt == request.time
+        && parent.search.primarySourceId == sourceId && parent.publicationStatus == 'PUBLISHED'
+        && validCreateAudit(parent);
+    }
+
+    function publicSource(placeId, sourceId) {
+      let parent = get(/databases/$(database)/documents/places/$(placeId)).data;
+      let source = resource.data;
+      return parent.publicationStatus in ['DRAFT', 'PUBLISHED']
+        && parent.placeId == placeId && parent.search.primarySourceId == sourceId
+        && source.placeId == placeId && source.placeSourceId == sourceId
+        && ((source.source == 'KTO' && placeId.matches('^kto-[0-9]+$'))
+          || (source.source == 'OWNER_INPUT' && ownerPlaceId(placeId)
+            && placeId == 'owner-' + source.sourceId && sourceId == 'owner-input-' + source.sourceId));
     }
 
     match /admins/{uid} {
@@ -694,23 +930,25 @@ service cloud.firestore {
     }
 
     match /places/{placeId} {
-      allow read: if true;
-      allow create, delete: if false;
+      allow read: if isActiveAdmin() || resource.data.publicationStatus in ['DRAFT', 'PUBLISHED'];
+      allow create: if isActiveAdmin() && validOwnerPlaceCreate(placeId);
+      allow delete: if false;
       allow update: if isActiveAdmin()
-        && validPlaceUpdate(placeId);
+        && (request.resource.data.publicationStatus != resource.data.publicationStatus
+          ? validPublicationTransition(placeId) : validPlaceUpdate(placeId));
 
       match /sources/{sourceId} {
-        allow read: if true;
-        allow write: if false;
+        allow get: if isActiveAdmin() || publicSource(placeId, sourceId);
+        allow list: if isActiveAdmin();
+        allow create: if isActiveAdmin() && validOwnerSourceCreate(placeId, sourceId);
+        allow update, delete: if false;
       }
     }
 
     // Rules can validate search shape/arithmetic and a SHA-256-shaped value, but
     // cannot recompute SHA-256 from document inputs. Parity is enforced in tests.
     match /{path=**}/sources/{sourceId} {
-      allow read: if resource.data.source == 'KTO'
-        && resource.data.placeId.matches('^kto-[0-9]+$');
-      allow write: if false;
+      allow read, write: if false;
     }
 
     match /{document=**} {

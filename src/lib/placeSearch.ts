@@ -1,8 +1,9 @@
 import {
-  collection, doc, getDoc, getDocs, limit, orderBy, query, where,
+  collection, doc, documentId, getDoc, getDocs, limit, orderBy, query, where,
   type Firestore, type QueryDocumentSnapshot,
 } from 'firebase/firestore/lite';
 import type { CatalogDocument } from './placeAdapter';
+import { isPlaceId, PUBLICATION_VISIBLE_STATUSES } from './placeIdentity';
 import {
   HERO_LIMIT, HERO_TOTAL_SCORE_MIN, SEARCH_VERSION,
   type PlaceSearchFields, type SearchCategory, type SearchRegion,
@@ -39,9 +40,11 @@ export function loadHeroPlaces(db: Firestore): Promise<CatalogDocument[]> {
   return guardedFirestoreRead(async () => {
     const snapshot = await getDocs(query(
       collection(db, 'places'),
+      where('publicationStatus', 'in', [...PUBLICATION_VISIBLE_STATUSES]),
       where('search.version', '==', SEARCH_VERSION),
       where('search.totalScore', '>=', HERO_TOTAL_SCORE_MIN),
       orderBy('search.totalScore', 'desc'),
+      orderBy(documentId(), 'desc'),
       limit(HERO_LIMIT),
     ));
     return snapshot.docs.map(documentData);
@@ -60,29 +63,45 @@ export function searchPlaces(
   return guardedFirestoreRead(async () => {
     const snapshot = await getDocs(query(
       collection(db, 'places'),
+      where('publicationStatus', 'in', [...PUBLICATION_VISIBLE_STATUSES]),
       where('search.version', '==', SEARCH_VERSION),
       where('search.region', '==', region),
       where('search.category', '==', category),
       orderBy('search.petSortKey', 'desc'),
+      orderBy(documentId(), 'desc'),
     ));
     return snapshot.docs.map(documentData);
   });
 }
 
-export function getPlace(db: Firestore, placeId: string): Promise<CatalogDocument | null> {
-  if (!placeId || placeId.includes('/')) return Promise.reject(new Error('Invalid place ID'));
+export function getAdminPlace(db: Firestore, placeId: string): Promise<CatalogDocument | null> {
+  if (!isPlaceId(placeId)) return Promise.reject(new Error('Invalid place ID'));
   return guardedFirestoreRead(async () => {
     const snapshot = await getDoc(doc(db, 'places', placeId));
     return snapshot.exists() ? documentData(snapshot as QueryDocumentSnapshot) : null;
   });
 }
 
+export function getPublicPlace(db: Firestore, placeId: string): Promise<CatalogDocument | null> {
+  if (!isPlaceId(placeId)) return Promise.reject(new Error('Invalid place ID'));
+  return guardedFirestoreRead(async () => {
+    // A document-name equality can authorize against the actual hidden document
+    // before filtering. The immutable placeId field keeps this a filtered query.
+    const snapshot = await getDocs(query(collection(db, 'places'),
+      where('placeId', '==', placeId), where('publicationStatus', 'in', [...PUBLICATION_VISIBLE_STATUSES]), limit(1)));
+    return snapshot.empty ? null : documentData(snapshot.docs[0]);
+  });
+}
+
+/** All non-admin call sites must revalidate public visibility. */
+export const getPlace = getPublicPlace;
+
 export function getPlaceSource(
   db: Firestore,
   placeId: string,
   sourceId: string,
 ): Promise<CatalogDocument | null> {
-  if (!placeId || !sourceId || placeId.includes('/') || sourceId.includes('/')) {
+  if (!isPlaceId(placeId) || !sourceId || sourceId.includes('/')) {
     return Promise.reject(new Error('Invalid place/source ID'));
   }
   return guardedFirestoreRead(async () => {
@@ -93,13 +112,13 @@ export function getPlaceSource(
 
 /** Resolve favorite place IDs without loading the full catalog. */
 export async function loadPlacesByIds(db: Firestore, placeIds: string[]): Promise<CatalogDocument[]> {
-  const unique = [...new Set(placeIds.filter((id) => id && !id.includes('/') && /^kto-\d+$/.test(id)))];
-  const results: CatalogDocument[] = [];
-  const concurrency = 4;
-  for (let i = 0; i < unique.length; i += concurrency) {
-    const chunk = unique.slice(i, i + concurrency);
-    const docs = await Promise.all(chunk.map((id) => getPlace(db, id)));
-    for (const docEntry of docs) if (docEntry) results.push(docEntry);
+  const unique = [...new Set(placeIds.filter(isPlaceId))];
+  const results = new Map<string, CatalogDocument>();
+  for (let i = 0; i < unique.length; i += 10) {
+    const snapshot = await guardedFirestoreRead(() => getDocs(query(collection(db, 'places'),
+      where('placeId', 'in', unique.slice(i, i + 10)),
+      where('publicationStatus', 'in', [...PUBLICATION_VISIBLE_STATUSES]))));
+    for (const entry of snapshot.docs) results.set(entry.id, documentData(entry));
   }
-  return results;
+  return unique.flatMap((id) => results.has(id) ? [results.get(id)!] : []);
 }

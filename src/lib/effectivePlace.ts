@@ -93,7 +93,7 @@ export function effectivePetDetails(
   place: Record<string, unknown>,
   source: Record<string, unknown>,
 ): EffectivePetDetail[] {
-  const ktoPet = objectValue(objectValue(source.kto).pet);
+  const ktoPet = source.source === 'KTO' ? objectValue(objectValue(source.kto).pet) : {};
   const overrides = objectValue(objectValue(place.adminOverrides).petDetails);
   const details: EffectivePetDetail[] = [];
   for (const [key, label] of PET_DETAIL_FIELDS) {

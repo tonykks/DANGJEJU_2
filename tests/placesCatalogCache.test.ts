@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { CATALOG_TTL_MS, QUOTA_COOLDOWN_MS, createCatalogLoader, readWithQuotaRetry } from '../src/lib/placesCatalogCache.ts';
 
 const documents = {
-  places: [{ id: 'kto-1', path: 'places/kto-1', data: { placeId: 'kto-1', name: '제주 테스트' } }],
-  sources: [{ id: 'kto-areaBasedList2-1', path: 'places/kto-1/sources/kto-areaBasedList2-1', data: { source: 'KTO', placeId: 'kto-1', kto: { contentTypeId: '32' } } }],
+  places: [{ id: 'kto-1', path: 'places/kto-1', data: { placeId: 'kto-1', publicationStatus: 'DRAFT', search: { version: 1, primarySourceId: 'kto-areaBasedList2-1' }, name: '제주 테스트' } }],
+  sources: [{ id: 'kto-areaBasedList2-1', path: 'places/kto-1/sources/kto-areaBasedList2-1', data: { placeSourceId: 'kto-areaBasedList2-1', source: 'KTO', placeId: 'kto-1', kto: { contentTypeId: '32' } } }],
 };
 const quota = () => Object.assign(new Error('Quota exceeded.'), { code: 'resource-exhausted' });
 function memoryStorage() {
