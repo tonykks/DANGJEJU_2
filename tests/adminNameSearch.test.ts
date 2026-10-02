@@ -8,6 +8,8 @@ import * as identity from '../src/lib/placeIdentity';
 import * as derivation from '../src/lib/searchDerivation';
 import * as searchTypes from '../src/lib/searchTypes';
 import * as quota from '../src/lib/firestoreQuota';
+import * as adapter from '../src/lib/placeAdapter';
+import * as adminEditor from '../src/lib/adminPlaceEditor';
 import { PLACE_DATA_CHANGED } from '../src/lib/placeInvalidation';
 import type { CatalogDocument } from '../src/lib/placeAdapter';
 
@@ -40,6 +42,12 @@ function hooks() {
       }];
     },
     useRef(value: any) { return (slots[cursor++] ??= { value: { current: value } }).value; },
+    useMemo(factory: () => any, deps: unknown[]) {
+      const slot = slots[cursor++] ??= {};
+      if (!slot.deps || deps.some((v, i) => !Object.is(v, slot.deps![i]))) { slot.value = factory(); slot.deps = deps; }
+      return slot.value;
+    },
+    useCallback(callback: any, deps: unknown[]) { return react.useMemo(() => callback, deps); },
     useEffect(effect: Effect, deps: unknown[]) {
       const index = cursor++, slot = slots[index] ??= {};
       if (!slot.deps || deps.some((v, i) => !Object.is(v, slot.deps![i]))) {
@@ -141,7 +149,7 @@ function library(fixtures = [place(1), place(2, 'PUBLISHED'), place(3, 'HIDDEN')
 
 async function manager(options: { name?: (...args: any[]) => Promise<CatalogDocument[]>; region?: (...args: any[]) => Promise<any> } = {}) {
   const lib = library(), runtime = hooks(), window = new EventTarget();
-  const calls = { names: [] as any[][], regions: [] as any[][], batches: [] as { action: string; targets: CatalogDocument[] }[], edits: [] as string[], invalidations: 0 };
+  const calls = { names: [] as any[][], regions: [] as any[][], batches: [] as { action: string; targets: CatalogDocument[] }[], edits: [] as string[], invalidations: 0, clears: 0, editing: null as string | null };
   const api = {
     ...lib.api,
     searchAdminPlacesByName: (...args: Parameters<typeof lib.api.searchAdminPlacesByName>) => {
@@ -163,7 +171,8 @@ async function manager(options: { name?: (...args: any[]) => Promise<CatalogDocu
     '../lib/placeInvalidation': { PLACE_DATA_CHANGED, invalidatePlaceQueries: () => { calls.invalidations++; window.dispatchEvent(new Event(PLACE_DATA_CHANGED)); } },
   }, { window });
   const onBusyChange = () => {};
-  runtime.mount(() => AdminRegionManager({ onEdit: (id: string) => calls.edits.push(id), onBusyChange }));
+  const onClearEdit = () => { calls.clears++; calls.editing = null; };
+  runtime.mount(() => AdminRegionManager({ onEdit: (id: string) => { calls.edits.push(id); calls.editing = id; }, onBusyChange, onClearEdit }));
   await runtime.flush();
   const all = () => elements(runtime.tree);
   const find = (predicate: (el: Element) => boolean) => { const element = all().find(predicate); assert.ok(element, 'Expected UI element'); return element; };
@@ -176,8 +185,39 @@ async function manager(options: { name?: (...args: any[]) => Promise<CatalogDocu
     async enter(composing = false) { find((el) => el.type === 'input' && el.props.type === 'text').props.onKeyDown({ key: 'Enter', nativeEvent: { isComposing: composing }, preventDefault() {} }); await runtime.flush(); },
     async select(label: string, value: string) { find((el) => el.props['aria-label'] === label).props.onChange({ target: { value } }); await runtime.flush(); },
     async check(name: string) { find((el) => el.props['aria-label'] === `${name} 선택`).props.onChange(); await runtime.flush(); },
+    async edit(name: string) { const el = find((el) => el.type === 'button' && textOf(el).startsWith(`${name}주소`)); assert.ok(!el.props.disabled); el.props.onClick(); await runtime.flush(); },
   };
 }
+
+async function editor(load: (id: string) => Promise<{ place: CatalogDocument; source: CatalogDocument }>) {
+  const lib = library(), runtime = hooks();
+  let invalidate = () => {};
+  const { default: AdminPlaceEditor } = evaluate<{ default: (props: any) => Element }>('../src/components/AdminPlaceEditor.tsx', {
+    react: runtime.react, 'react/jsx-runtime': { jsx: (type: string, props: any) => ({ type, props }), jsxs: (type: string, props: any) => ({ type, props }) },
+    'lucide-react': {}, '../lib/firebase': { db: lib.db }, '../lib/placeAdapter': adapter,
+    './AdminPlaceCrud': { AdminRegionManager: 'AdminRegionManager' },
+    '../lib/placeInvalidation': { invalidatePlaceQueries: () => invalidate() },
+    '../lib/adminPlaceEditor': { ...adminEditor, loadAdminPlace: (_db: unknown, id: string) => load(id), saveAdminPlace: async () => {} },
+  });
+  runtime.mount(() => AdminPlaceEditor({ uid: 'test-admin', onHome() {} }));
+  await runtime.flush();
+  const all = () => elements(runtime.tree);
+  const button = (label: string) => { const el = all().find((el) => el.type === 'button' && textOf(el) === label); assert.ok(el); return el; };
+  button('지역·업종 관리').props.onClick(); await runtime.flush();
+  const managerProps = () => all().find((el) => el.type === 'AdminRegionManager')!.props;
+  return {
+    ...runtime, all, button, managerProps,
+    onInvalidation(callback: () => void) { invalidate = callback; },
+    async prepareEdit() {
+      all().find((el) => el.type === 'input' && el.props.type === 'checkbox')!.props.onChange(); await runtime.flush();
+      all().find((el) => el.props.definition?.id === 'name')!.props.onChange('제주 수정'); await runtime.flush();
+      button('변경 확인').props.onClick(); await runtime.flush();
+    },
+    hasDetails: () => all().some((el) => el.type === 'h3' && textOf(el).startsWith('제주')),
+  };
+}
+
+const loadedPlace = (id = 1) => ({ place: { ...place(id), data: { ...place(id).data, placeId: `kto-${id}` } }, source: { id: 'source', path: `places/kto-${id}/sources/source`, data: {} } });
 
 test('name query keeps legacy results and applies visible/hidden filters within bounded prefix reads', async () => {
   const h = library();
@@ -312,17 +352,24 @@ test('mode/status/input changes clear selections and dialogs; state caches remai
 test('name selection uses the existing hide/restore batches and invalidates displayed revisions and cache', async () => {
   const h = await manager();
   await h.click('업체명 조회'); await h.type('제주'); await h.click('조회');
-  await h.click('현재 조건 전체 선택'); assert.equal(h.calls.regions.length, 0);
+  assert.ok(!h.all().some((el) => el.type === 'button' && textOf(el) === '현재 조건 전체 선택'));
+  await h.click('현재 표시된 항목 선택'); assert.match(h.content(), /선택 2개/); assert.equal(h.calls.regions.length, 0);
   await h.click('전체 선택 해제'); assert.match(h.content(), /선택 0개/);
+  await h.edit('제주 1'); assert.equal(h.calls.editing, 'kto-1');
   await h.check('제주 1'); await h.check('제주 2'); await h.click('선택 장소 삭제');
   assert.equal(h.calls.batches.length, 0);
+  const beforeHide = h.calls.clears;
   await h.click('확인하고 삭제');
+  assert.ok(h.calls.clears > beforeHide); assert.equal(h.calls.editing, null);
   assert.deepEqual(h.calls.batches[0].targets.map((p) => p.id), ['kto-1', 'kto-2']);
   assert.equal(h.calls.invalidations, 1); assert.match(h.content(), /선택 0개 \/ 표시 0개/); assert.match(h.content(), /저장 완료: 2/);
   assert.equal(h.calls.names.length, 1); // invalidation clears; it does not auto-read
   await h.click('조회'); assert.equal(h.calls.names.length, 2); assert.match(h.content(), /조건에 맞는 장소가 없습니다/);
   await h.click('삭제된 장소'); await h.click('조회');
+  await h.edit('제주 1'); assert.equal(h.calls.editing, 'kto-1');
+  const beforeRestore = h.calls.clears;
   await h.check('제주 1'); await h.check('제주 2'); await h.click('선택 장소 복원'); await h.click('확인하고 복원');
+  assert.ok(h.calls.clears > beforeRestore); assert.equal(h.calls.editing, null);
   assert.equal(h.calls.batches[1].action, 'restore'); assert.equal(h.calls.invalidations, 2);
   assert.equal(h.docs.get('kto-1')!.data.publicationStatus, 'DRAFT');
   assert.equal(h.docs.get('kto-2')!.data.publicationStatus, 'PUBLISHED');
@@ -364,12 +411,124 @@ test('region pagination/select-all and edit links still work; name mode never fe
   assert.equal(h.button('지역·업종 조회').props['aria-pressed'], true);
   await h.select('관리 지역', 'WEST'); assert.equal(h.calls.regions.length, 0);
   await h.select('관리 업종', 'CAFE'); assert.equal(h.calls.regions.length, 1);
+  await h.click('현재 표시된 항목 선택'); assert.match(h.content(), /선택 1개 \/ 표시 1개/);
+  await h.edit('제주 10'); assert.equal(h.calls.editing, 'kto-10');
   await h.click('더 보기'); assert.match(h.content(), /표시 2개/); assert.equal(h.calls.regions.length, 2);
+  assert.equal(h.calls.editing, 'kto-10');
   await h.click('다시 조회'); await h.click('현재 조건 전체 선택'); assert.match(h.content(), /선택 2개 \/ 표시 2개/);
+  assert.equal(h.calls.editing, null);
   await h.click('업체명 조회'); await h.type('제주'); await h.click('조회');
   const before = h.calls.regions.length;
-  await h.click('현재 조건 전체 선택'); assert.equal(h.calls.regions.length, before);
+  assert.ok(!h.all().some((el) => el.type === 'button' && textOf(el) === '현재 조건 전체 선택'));
+  await h.click('현재 표시된 항목 선택'); assert.equal(h.calls.regions.length, before);
   assert.ok(!h.all().some((el) => el.type === 'button' && textOf(el) === '더 보기'));
   const edit = h.all().find((el) => el.type === 'button' && textOf(el).startsWith('제주 1주소'))!;
-  assert.ok(edit); edit.props.onClick(); assert.deepEqual(h.calls.edits, ['kto-1']); h.unmount();
+  assert.ok(edit); edit.props.onClick(); await h.flush(); assert.deepEqual(h.calls.edits, ['kto-10', 'kto-1']);
+  assert.equal(h.calls.editing, 'kto-1'); h.unmount();
+});
+
+test('query changes and refresh clear the open editor until a current result is clicked', async () => {
+  const h = await manager();
+  await h.select('관리 지역', 'WEST'); await h.select('관리 업종', 'CAFE');
+  for (const change of [
+    () => h.select('관리 지역', 'EAST'),
+    () => h.select('관리 업종', 'FOOD'),
+    () => h.click('삭제된 장소'),
+    () => h.click('정상 장소'),
+    () => h.click('다시 조회'),
+    async () => { h.window.dispatchEvent(new Event(PLACE_DATA_CHANGED)); await h.flush(); },
+  ]) {
+    await h.edit('제주 10'); assert.equal(h.calls.editing, 'kto-10');
+    const before = h.calls.clears;
+    await change(); assert.ok(h.calls.clears > before); assert.equal(h.calls.editing, null);
+  }
+  await h.edit('제주 10'); await h.click('업체명 조회'); assert.equal(h.calls.editing, null);
+  await h.type('제주'); await h.click('조회');
+  for (const label of ['조회', '다시 조회', '지역·업종 조회']) {
+    await h.edit('제주 1'); assert.equal(h.calls.editing, 'kto-1');
+    const before = h.calls.clears;
+    await h.click(label); assert.ok(h.calls.clears > before); assert.equal(h.calls.editing, null);
+  }
+  await h.click('업체명 조회'); await h.click('조회'); await h.edit('제주 1');
+  await h.type('없음'); assert.equal(h.calls.editing, null);
+  await h.click('조회'); assert.match(h.content(), /조건에 맞는 장소가 없습니다/); assert.equal(h.calls.editing, null);
+  await h.type('제주'); await h.click('조회'); await h.edit('제주 1');
+  const reads = h.calls.names.length, clears = h.calls.clears;
+  h.window.dispatchEvent(new Event('focus')); h.window.dispatchEvent(new Event('visibilitychange')); await h.flush();
+  assert.equal(h.calls.editing, 'kto-1'); assert.equal(h.calls.clears, clears); assert.equal(h.calls.names.length, reads);
+  h.window.dispatchEvent(new Event(PLACE_DATA_CHANGED)); await h.flush();
+  assert.equal(h.calls.editing, null); assert.equal(h.calls.names.length, reads);
+  await h.click('조회'); assert.equal(h.calls.names.length, reads + 1); assert.equal(h.calls.editing, null);
+  await h.edit('제주 1'); assert.equal(h.calls.editing, 'kto-1'); h.unmount();
+});
+
+test('new queries clear details immediately and empty name/region results keep them closed', async () => {
+  for (const mode of ['name', 'region']) {
+    const pending = deferred<any>();
+    let count = 0;
+    const h = await manager(mode === 'name'
+      ? { name: () => ++count === 1 ? Promise.resolve([place(1)]) : pending.promise }
+      : { region: () => ++count === 1 ? Promise.resolve({ places: [place(1)], cursor: null, hasMore: false }) : pending.promise });
+    if (mode === 'name') { await h.click('업체명 조회'); await h.type('제주'); await h.click('조회'); }
+    else { await h.select('관리 지역', 'WEST'); await h.select('관리 업종', 'CAFE'); }
+    await h.edit('제주 1'); assert.equal(h.calls.editing, 'kto-1');
+    await h.click('다시 조회'); assert.equal(h.calls.editing, null);
+    pending.resolve(mode === 'name' ? [] : { places: [], cursor: null, hasMore: false });
+    await h.flush(); assert.match(h.content(), /조건에 맞는 장소가 없습니다/); assert.equal(h.calls.editing, null);
+    h.unmount();
+  }
+});
+
+test('manager clear callback resets the real editor and stays stable when details reopen', async () => {
+  const h = await editor(async () => loadedPlace());
+  const clear = h.managerProps().onClearEdit;
+  assert.equal(typeof clear, 'function');
+  h.managerProps().onEdit('kto-1'); await h.flush(); assert.equal(h.hasDetails(), true);
+  const field = h.all().find((el) => el.type === 'input' && el.props.type === 'checkbox')!;
+  field.props.onChange(); await h.flush(); assert.equal(h.button('변경 확인').props.disabled, false);
+  assert.equal(h.managerProps().onClearEdit, clear);
+  clear(); await h.flush(); assert.equal(h.hasDetails(), false);
+  h.managerProps().onEdit('kto-1'); await h.flush(); assert.equal(h.hasDetails(), true);
+  assert.equal(h.button('변경 확인').props.disabled, true);
+  assert.equal(h.managerProps().onClearEdit, clear); h.unmount();
+});
+
+test('clearing a pending detail load prevents its late success or error from reopening stale details', async () => {
+  for (const fail of [false, true]) {
+    const pending = deferred<ReturnType<typeof loadedPlace>>();
+    let count = 0;
+    const h = await editor(() => ++count === 1 ? pending.promise : Promise.resolve(loadedPlace(2)));
+    h.managerProps().onEdit('kto-1'); await h.flush();
+    h.managerProps().onClearEdit(); await h.flush();
+    if (fail) pending.reject(new Error('stale detail failure')); else pending.resolve(loadedPlace());
+    await h.flush();
+    assert.equal(h.hasDetails(), false);
+    assert.ok(!h.all().some((el) => el.props.role === 'status' && textOf(el).includes('stale detail failure')));
+    h.managerProps().onEdit('kto-2'); await h.flush(); assert.equal(h.hasDetails(), true);
+    h.unmount();
+  }
+});
+
+test('saving cannot reopen details cleared by the list refresh; other saves still reload', async () => {
+  for (const clearOnRefresh of [false, true]) {
+    let loads = 0;
+    const h = await editor(async () => { loads++; return loadedPlace(); });
+    if (clearOnRefresh) h.onInvalidation(() => h.managerProps().onClearEdit());
+    h.managerProps().onEdit('kto-1'); await h.flush(); await h.prepareEdit();
+    h.button('확인하고 저장').props.onClick(); await h.flush();
+    assert.equal(h.hasDetails(), !clearOnRefresh);
+    assert.equal(loads, clearOnRefresh ? 1 : 2);
+    h.unmount();
+  }
+});
+
+test('a query change during the post-save detail reload keeps the editor closed', async () => {
+  const pending = deferred<ReturnType<typeof loadedPlace>>();
+  let loads = 0;
+  const h = await editor(() => ++loads === 1 ? Promise.resolve(loadedPlace()) : pending.promise);
+  h.managerProps().onEdit('kto-1'); await h.flush(); await h.prepareEdit();
+  h.button('확인하고 저장').props.onClick(); await h.flush(); assert.equal(loads, 2);
+  h.managerProps().onClearEdit(); await h.flush();
+  pending.resolve(loadedPlace()); await h.flush(); assert.equal(h.hasDetails(), false);
+  h.unmount();
 });

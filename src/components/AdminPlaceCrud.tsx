@@ -95,7 +95,7 @@ export function AdminCreatePlace({ uid, Input, onClose, onCreated, onBusyChange 
   </section>;
 }
 
-export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: string) => void; onBusyChange: (busy: boolean) => void }) {
+export function AdminRegionManager({ onEdit, onBusyChange, onClearEdit }: { onEdit: (id: string) => void; onBusyChange: (busy: boolean) => void; onClearEdit?: () => void }) {
   const [queryMode, setQueryMode] = useState<'region' | 'name'>('region');
   const [nameValue, setNameValue] = useState('');
   const [namePlaces, setNamePlaces] = useState<CatalogDocument[]>([]);
@@ -115,31 +115,37 @@ export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: stri
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     const ticket = ++generation.current;
+    onClearEdit?.();
     setSelected(new Set()); setConfirmation(null); setError('');
     setPage({ places: [], cursor: null, hasMore: false });
     setNamePlaces([]); setNameSearched(false);
     if (queryMode === 'region' && db && filter.region !== 'UNKNOWN' && filter.category !== 'UNKNOWN') {
       setBusy(true);
       void searchAdminPlacesByRegionAndCategory(db, filter).then((next) => {
-        if (ticket === generation.current) setPage(next);
+        if (ticket === generation.current) {
+          setPage(next);
+          if (!next.places.length) onClearEdit?.();
+        }
       }, (error) => { if (ticket === generation.current) setError(messageOf(error)); })
         .finally(() => { if (ticket === generation.current) setBusy(false); });
     } else { setBusy(false); }
     return () => { generation.current++; };
-  }, [filter, attempt, queryMode]);
+  }, [filter, attempt, queryMode, onClearEdit]);
   // An edit/create elsewhere in the administrator screen invalidates selected revisions.
   useEffect(() => {
     const refresh = () => {
       generation.current++;
+      onClearEdit?.();
       nameCache.current.clear();
       setAttempt((value) => value + 1);
     };
     window.addEventListener(PLACE_DATA_CHANGED, refresh);
     return () => window.removeEventListener(PLACE_DATA_CHANGED, refresh);
-  }, []);
+  }, [onClearEdit]);
 
   function clearNameSelection() {
     generation.current++;
+    onClearEdit?.();
     setSelected(new Set()); setConfirmation(null); setError('');
     setNamePlaces([]); setNameSearched(false);
   }
@@ -171,7 +177,10 @@ export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: stri
         nameCache.current.set(key, request);
       }
       const places = await request;
-      if (ticket === generation.current) { setNamePlaces(places); setNameSearched(true); }
+      if (ticket === generation.current) {
+        setNamePlaces(places); setNameSearched(true);
+        if (!places.length) onClearEdit?.();
+      }
     } catch (error) { if (ticket === generation.current) setError(messageOf(error)); }
     finally { if (ticket === generation.current) setBusy(false); }
   }
@@ -201,6 +210,7 @@ export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: stri
       const work = confirmation.action === 'hide' ? batchHideAdminPlaces : batchRestoreAdminPlaces;
       const result = await work(db, confirmation.targets, { signal: controller.current.signal, onProgress: setOutcomes });
       setOutcomes(result); setConfirmation(null); setSelected(new Set());
+      onClearEdit?.();
       invalidatePlaceQueries();
     } catch (error) { setError(messageOf(error)); }
     finally { controller.current = null; setBusy(false); }
@@ -218,8 +228,8 @@ export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: stri
       <button type="button" className={toggleButton} aria-pressed={queryMode === 'name'} disabled={!!controller.current} onClick={() => handleQueryModeChange('name')}>업체명 조회</button>
     </div>
     {queryMode === 'region' ? <><div className="flex flex-wrap gap-2">
-      <label className="text-sm">지역 <select aria-label="관리 지역" className={selectButton} disabled={!!controller.current} value={filter.region} onChange={(e) => setFilter((f) => ({ ...f, region: e.target.value as AdminRegionFilter['region'] }))}><option value="UNKNOWN">지역 선택</option>{CRUD_REGIONS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-      <label className="text-sm">업종 <select aria-label="관리 업종" className={selectButton} disabled={!!controller.current} value={filter.category} onChange={(e) => setFilter((f) => ({ ...f, category: e.target.value as AdminRegionFilter['category'] }))}><option value="UNKNOWN">업종 선택</option>{CRUD_CATEGORIES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+      <label className="text-sm">지역 <select aria-label="관리 지역" className={selectButton} disabled={!!controller.current} value={filter.region} onChange={(e) => { onClearEdit?.(); setFilter((f) => ({ ...f, region: e.target.value as AdminRegionFilter['region'] })); }}><option value="UNKNOWN">지역 선택</option>{CRUD_REGIONS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+      <label className="text-sm">업종 <select aria-label="관리 업종" className={selectButton} disabled={!!controller.current} value={filter.category} onChange={(e) => { onClearEdit?.(); setFilter((f) => ({ ...f, category: e.target.value as AdminRegionFilter['category'] })); }}><option value="UNKNOWN">업종 선택</option>{CRUD_CATEGORIES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
       <button className={button} disabled={busy} onClick={() => setAttempt((v) => v + 1)}>다시 조회</button>
     </div>
     <p className="text-xs text-slate-500">지역과 업종을 모두 선택해 주세요. 선택 대상은 조회된 목록 기준이며, 저장 전 변경 여부를 다시 확인합니다.</p></> : <>
@@ -234,7 +244,7 @@ export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: stri
     </>}
     <div className="flex flex-wrap items-center gap-2">
       <button className={button} disabled={busy || !currentPlaces.length} onClick={() => setSelected(new Set(currentPlaces.map(({ id }) => id)))}>현재 표시된 항목 선택</button>
-      <button className={button} disabled={busy || !currentPlaces.length} onClick={() => { if (queryMode === 'region') void more(true); else setSelected(new Set(currentPlaces.map(({ id }) => id))); }}>현재 조건 전체 선택</button>
+      {queryMode === 'region' && <button className={button} disabled={busy || !currentPlaces.length} onClick={() => void more(true)}>현재 조건 전체 선택</button>}
       <button className={button} disabled={busy} onClick={() => setSelected(new Set())}>전체 선택 해제</button>
       <span aria-live="polite" className="text-sm font-bold">선택 {selected.size}개 / 표시 {currentPlaces.length}개</span>
       <button className={button} disabled={busy || !targets.length} onClick={() => setConfirmation({ action: filter.hidden ? 'restore' : 'hide', targets: [...targets] })}>{filter.hidden ? '선택 장소 복원' : '선택 장소 삭제'}</button>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, CheckCircle2, ImageOff, Search, ShieldCheck } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { adaptPlace, PLACEHOLDER_IMAGE } from '../lib/placeAdapter';
@@ -83,6 +83,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const editGeneration = useRef(0);
   const selectedPlace = useMemo(() => loaded ? adaptPlace(loaded.place, [loaded.source]) : null, [loaded]);
 
   function initialize(next: AdminLoadedPlace) {
@@ -94,14 +95,15 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
     setDrafts(Object.fromEntries(ADMIN_FIELD_DEFINITIONS.map((definition) => [definition.id, adminValueToDraft(adminFieldCurrentValue(definition, next))])));
   }
 
-  function clearLoadedPlace() {
+  const clearLoadedPlace = useCallback(() => {
+    editGeneration.current++;
     setLoaded(null);
     setSelected(new Set());
     setClears(new Set());
     setDrafts({});
     setPlan(null);
     setActionError(null);
-  }
+  }, []);
 
   async function runSearch(event: FormEvent) {
     event.preventDefault();
@@ -120,8 +122,12 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
   async function selectPlace(placeId: string) {
     if (!db || busy) return;
     setBusy(true); setMessage(null); setActionError(null); clearLoadedPlace();
-    try { initialize(await loadAdminPlace(db, placeId)); }
-    catch (error) { setMessage(error instanceof Error ? error.message : '장소 정보를 불러오지 못했습니다.'); }
+    const ticket = editGeneration.current;
+    try {
+      const next = await loadAdminPlace(db, placeId);
+      if (ticket === editGeneration.current) initialize(next);
+    }
+    catch (error) { if (ticket === editGeneration.current) setMessage(error instanceof Error ? error.message : '장소 정보를 불러오지 못했습니다.'); }
     finally { setBusy(false); }
   }
 
@@ -155,6 +161,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
   async function save() {
     if (!db || !loaded || !plan || busy) return;
     setBusy(true); setMessage(null); setActionError(null);
+    const ticket = editGeneration.current;
     try {
       await saveAdminPlace(db, loaded, plan, uid);
       invalidatePlaceQueries();
@@ -164,13 +171,20 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
       return;
     }
 
+    const savedMessage = '선택한 표시정보와 검색 파생값을 한 번의 원자적 업데이트로 저장했습니다.';
+    // A list refresh or filter change has closed this editor; only a new click may reopen it.
+    if (ticket !== editGeneration.current) {
+      setMessage(savedMessage); setBusy(false);
+      return;
+    }
     const savedPlaceId = loaded.place.id;
     clearLoadedPlace();
+    const refreshTicket = editGeneration.current;
     try {
-      initialize(await loadAdminPlace(db, savedPlaceId));
-      setMessage('선택한 표시정보와 검색 파생값을 한 번의 원자적 업데이트로 저장했습니다.');
+      const next = await loadAdminPlace(db, savedPlaceId);
+      if (refreshTicket === editGeneration.current) { initialize(next); setMessage(savedMessage); }
     } catch {
-      setMessage('저장은 완료됐지만 최신 값을 다시 불러오지 못했습니다. 장소를 다시 검색해 확인해 주세요.');
+      if (refreshTicket === editGeneration.current) setMessage('저장은 완료됐지만 최신 값을 다시 불러오지 못했습니다. 장소를 다시 검색해 확인해 주세요.');
     } finally {
       setBusy(false);
     }
@@ -190,7 +204,7 @@ export default function AdminPlaceEditor({ uid, onHome }: Props) {
         {([['name', '업체명 검색'], ['region', '지역·업종 관리'], ['create', '새 장소 등록']] as const).map(([value, label]) => <button key={value} disabled={busy || crudBusy} aria-pressed={mode === value} onClick={() => { setMode(value); clearLoadedPlace(); setResults([]); setMessage(null); }} className="cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.98] active:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 aria-pressed:border-slate-900 aria-pressed:bg-slate-900 aria-pressed:text-white aria-pressed:shadow-sm aria-pressed:hover:border-slate-800 aria-pressed:hover:bg-slate-800 aria-pressed:hover:text-white">{label}</button>)}
       </nav>
       {mode === 'create' && <AdminCreatePlace uid={uid} Input={EditorInput} onBusyChange={setCrudBusy} onClose={() => setMode('name')} onCreated={(id) => { setMode('name'); void selectPlace(id); }} />}
-      {mode === 'region' && <AdminRegionManager onBusyChange={setCrudBusy} onEdit={(id) => void selectPlace(id)} />}
+      {mode === 'region' && <AdminRegionManager onBusyChange={setCrudBusy} onEdit={(id) => void selectPlace(id)} onClearEdit={clearLoadedPlace} />}
       {mode === 'name' && <section className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
         <form onSubmit={runSearch} className="flex gap-2">
           <label className="sr-only" htmlFor="admin-place-search">업체명 검색</label>
