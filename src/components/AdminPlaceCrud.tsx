@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { db } from '../lib/firebase';
 import { objectValue } from '../lib/effectivePlace';
 import { ownerPlaceIdentity } from '../lib/placeIdentity';
-import { invalidatePlaceQueries } from '../lib/placeInvalidation';
+import { invalidatePlaceQueries, PLACE_DATA_CHANGED } from '../lib/placeInvalidation';
 import type { CatalogDocument } from '../lib/placeAdapter';
 import {
-  ADMIN_FIELD_DEFINITIONS, batchHideAdminPlaces, batchRestoreAdminPlaces, buildAdminCreatePlan, createAdminPlace,
-  formatAdminValue, searchAdminPlacesByRegionAndCategory, type AdminCreatePlan, type AdminFieldDefinition,
+  ADMIN_FIELD_DEFINITIONS, ADMIN_PLACE_QUERY_LIMIT, batchHideAdminPlaces, batchRestoreAdminPlaces, buildAdminCreatePlan, createAdminPlace,
+  formatAdminValue, searchAdminPlacesByName, searchAdminPlacesByRegionAndCategory, validatePlacePrefix, type AdminCreatePlan, type AdminFieldDefinition,
   type AdminRegionFilter, type AdminRegionPage, type PublicationAction, type PublicationResult,
 } from '../lib/adminPlaceEditor';
 
@@ -96,6 +96,11 @@ export function AdminCreatePlace({ uid, Input, onClose, onCreated, onBusyChange 
 }
 
 export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: string) => void; onBusyChange: (busy: boolean) => void }) {
+  const [queryMode, setQueryMode] = useState<'region' | 'name'>('region');
+  const [nameValue, setNameValue] = useState('');
+  const [namePlaces, setNamePlaces] = useState<CatalogDocument[]>([]);
+  const [nameSearched, setNameSearched] = useState(false);
+  const nameCache = useRef(new Map<string, Promise<CatalogDocument[]>>());
   const [filter, setFilter] = useState<AdminRegionFilter>({ region: 'UNKNOWN', category: 'UNKNOWN', hidden: false });
   const [page, setPage] = useState<AdminRegionPage>({ places: [], cursor: null, hasMore: false });
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -112,23 +117,66 @@ export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: stri
     const ticket = ++generation.current;
     setSelected(new Set()); setConfirmation(null); setError('');
     setPage({ places: [], cursor: null, hasMore: false });
-    if (!db || filter.region === 'UNKNOWN' || filter.category === 'UNKNOWN') { setBusy(false); return; }
-    setBusy(true);
-    void searchAdminPlacesByRegionAndCategory(db, filter).then((next) => {
-      if (ticket === generation.current) setPage(next);
-    }, (error) => { if (ticket === generation.current) setError(messageOf(error)); })
-      .finally(() => { if (ticket === generation.current) setBusy(false); });
+    setNamePlaces([]); setNameSearched(false);
+    if (queryMode === 'region' && db && filter.region !== 'UNKNOWN' && filter.category !== 'UNKNOWN') {
+      setBusy(true);
+      void searchAdminPlacesByRegionAndCategory(db, filter).then((next) => {
+        if (ticket === generation.current) setPage(next);
+      }, (error) => { if (ticket === generation.current) setError(messageOf(error)); })
+        .finally(() => { if (ticket === generation.current) setBusy(false); });
+    } else { setBusy(false); }
     return () => { generation.current++; };
-  }, [filter, attempt]);
+  }, [filter, attempt, queryMode]);
   // An edit/create elsewhere in the administrator screen invalidates selected revisions.
   useEffect(() => {
-    const refresh = () => setAttempt((value) => value + 1);
-    window.addEventListener('dangjeju:places-changed', refresh);
-    return () => window.removeEventListener('dangjeju:places-changed', refresh);
+    const refresh = () => {
+      generation.current++;
+      nameCache.current.clear();
+      setAttempt((value) => value + 1);
+    };
+    window.addEventListener(PLACE_DATA_CHANGED, refresh);
+    return () => window.removeEventListener(PLACE_DATA_CHANGED, refresh);
   }, []);
 
+  function clearNameSelection() {
+    generation.current++;
+    setSelected(new Set()); setConfirmation(null); setError('');
+    setNamePlaces([]); setNameSearched(false);
+  }
+  function handleQueryModeChange(mode: 'region' | 'name') {
+    if (mode === queryMode || controller.current) return;
+    clearNameSelection();
+    setQueryMode(mode);
+  }
+  function handleHiddenChange(hidden: boolean) {
+    if (hidden === filter.hidden || controller.current) return;
+    clearNameSelection();
+    setFilter((current) => ({ ...current, hidden }));
+  }
+  async function searchName(force = false) {
+    if (!db || busy || queryMode !== 'name' || !nameValue.trim()) return;
+    clearNameSelection();
+    const ticket = generation.current;
+    setBusy(true);
+    try {
+      const prefix = validatePlacePrefix(nameValue);
+      const key = JSON.stringify([prefix, filter.hidden]);
+      let request = force ? undefined : nameCache.current.get(key);
+      if (!request) {
+        request = searchAdminPlacesByName(db, prefix, { hidden: filter.hidden }).catch((error) => {
+          if (nameCache.current.get(key) === request) nameCache.current.delete(key);
+          throw error;
+        });
+        if (nameCache.current.size >= 20) nameCache.current.delete(nameCache.current.keys().next().value!);
+        nameCache.current.set(key, request);
+      }
+      const places = await request;
+      if (ticket === generation.current) { setNamePlaces(places); setNameSearched(true); }
+    } catch (error) { if (ticket === generation.current) setError(messageOf(error)); }
+    finally { if (ticket === generation.current) setBusy(false); }
+  }
   async function more(selectAll = false) {
-    if (!db || busy) return;
+    if (!db || busy || queryMode !== 'region') return;
     const ticket = generation.current;
     setBusy(true); setError('');
     try {
@@ -157,32 +205,47 @@ export function AdminRegionManager({ onEdit, onBusyChange }: { onEdit: (id: stri
     } catch (error) { setError(messageOf(error)); }
     finally { controller.current = null; setBusy(false); }
   }
-  const targets = page.places.filter(({ id }) => selected.has(id));
+  const currentPlaces = queryMode === 'region' ? page.places : namePlaces;
+  const targets = currentPlaces.filter(({ id }) => selected.has(id));
   const labelFor = (options: string[][], value: unknown) => options.find(([key]) => key === value)?.[1] ?? String(value);
   return <section className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
     <div className="flex flex-wrap gap-2" role="group" aria-label="장소 상태">
-      {[false, true].map((hidden) => <button key={String(hidden)} className={toggleButton} aria-pressed={filter.hidden === hidden} disabled={!!controller.current} onClick={() => setFilter((current) => ({ ...current, hidden }))}>{hidden ? '삭제된 장소' : '정상 장소'}</button>)}
+      {[false, true].map((hidden) => <button key={String(hidden)} className={toggleButton} aria-pressed={filter.hidden === hidden} disabled={!!controller.current} onClick={() => handleHiddenChange(hidden)}>{hidden ? '삭제된 장소' : '정상 장소'}</button>)}
     </div>
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs font-bold text-slate-500">조회 방식</span>
+      <button type="button" className={toggleButton} aria-pressed={queryMode === 'region'} disabled={!!controller.current} onClick={() => handleQueryModeChange('region')}>지역·업종 조회</button>
+      <button type="button" className={toggleButton} aria-pressed={queryMode === 'name'} disabled={!!controller.current} onClick={() => handleQueryModeChange('name')}>업체명 조회</button>
+    </div>
+    {queryMode === 'region' ? <><div className="flex flex-wrap gap-2">
       <label className="text-sm">지역 <select aria-label="관리 지역" className={selectButton} disabled={!!controller.current} value={filter.region} onChange={(e) => setFilter((f) => ({ ...f, region: e.target.value as AdminRegionFilter['region'] }))}><option value="UNKNOWN">지역 선택</option>{CRUD_REGIONS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
       <label className="text-sm">업종 <select aria-label="관리 업종" className={selectButton} disabled={!!controller.current} value={filter.category} onChange={(e) => setFilter((f) => ({ ...f, category: e.target.value as AdminRegionFilter['category'] }))}><option value="UNKNOWN">업종 선택</option>{CRUD_CATEGORIES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
       <button className={button} disabled={busy} onClick={() => setAttempt((v) => v + 1)}>다시 조회</button>
     </div>
-    <p className="text-xs text-slate-500">지역과 업종을 모두 선택해 주세요. 선택 대상은 조회된 목록 기준이며, 저장 전 변경 여부를 다시 확인합니다.</p>
+    <p className="text-xs text-slate-500">지역과 업종을 모두 선택해 주세요. 선택 대상은 조회된 목록 기준이며, 저장 전 변경 여부를 다시 확인합니다.</p></> : <>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex min-w-0 flex-wrap items-center gap-2 text-sm">업체명
+          <input type="text" className="min-w-0 max-w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-amber-500" value={nameValue} disabled={busy} placeholder="업체명 앞부분 입력" onChange={(event) => { clearNameSelection(); setNameValue(event.target.value); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void searchName(); } }} />
+        </label>
+        <button type="button" className={button} disabled={busy || !nameValue.trim()} onClick={() => void searchName()}>조회</button>
+        <button type="button" className={button} disabled={busy || !nameValue.trim()} onClick={() => void searchName(true)}>다시 조회</button>
+      </div>
+      <p className="text-xs text-slate-500">업체명 앞부분으로 최대 {ADMIN_PLACE_QUERY_LIMIT}개를 표시합니다. 일부 결과만 표시되므로 찾는 장소가 없으면 업체명을 더 구체적으로 입력해 주세요. 최신 상태는 다시 조회로 확인할 수 있습니다.</p>
+    </>}
     <div className="flex flex-wrap items-center gap-2">
-      <button className={button} disabled={busy || !page.places.length} onClick={() => setSelected(new Set(page.places.map(({ id }) => id)))}>현재 표시된 항목 선택</button>
-      <button className={button} disabled={busy || !page.places.length} onClick={() => void more(true)}>현재 조건 전체 선택</button>
+      <button className={button} disabled={busy || !currentPlaces.length} onClick={() => setSelected(new Set(currentPlaces.map(({ id }) => id)))}>현재 표시된 항목 선택</button>
+      <button className={button} disabled={busy || !currentPlaces.length} onClick={() => { if (queryMode === 'region') void more(true); else setSelected(new Set(currentPlaces.map(({ id }) => id))); }}>현재 조건 전체 선택</button>
       <button className={button} disabled={busy} onClick={() => setSelected(new Set())}>전체 선택 해제</button>
-      <span aria-live="polite" className="text-sm font-bold">선택 {selected.size}개 / 표시 {page.places.length}개</span>
+      <span aria-live="polite" className="text-sm font-bold">선택 {selected.size}개 / 표시 {currentPlaces.length}개</span>
       <button className={button} disabled={busy || !targets.length} onClick={() => setConfirmation({ action: filter.hidden ? 'restore' : 'hide', targets: [...targets] })}>{filter.hidden ? '선택 장소 복원' : '선택 장소 삭제'}</button>
     </div>
     {busy && <p role="status">처리 중…</p>}{error && <p role="alert" className="text-sm text-rose-800">{error}</p>}
-    {!busy && !page.places.length && filter.region !== 'UNKNOWN' && filter.category !== 'UNKNOWN' && !error && <p className="text-sm">조건에 맞는 장소가 없습니다.</p>}
-    <ul className="divide-y rounded-xl border">{page.places.map((place) => <li key={place.id} className="flex items-center gap-3 p-3">
+    {!busy && !currentPlaces.length && (queryMode === 'name' ? nameSearched : filter.region !== 'UNKNOWN' && filter.category !== 'UNKNOWN') && !error && <p className="text-sm">조건에 맞는 장소가 없습니다.</p>}
+    <ul className="divide-y rounded-xl border">{currentPlaces.map((place) => <li key={place.id} className="flex items-center gap-3 p-3">
       <input type="checkbox" aria-label={`${String(place.data.name)} 선택`} disabled={busy} checked={selected.has(place.id)} onChange={() => setSelected((old) => { const next = new Set(old); if (next.has(place.id)) next.delete(place.id); else next.add(place.id); return next; })} />
       <button disabled={busy} className="min-w-0 flex-1 cursor-pointer text-left transition duration-150 hover:opacity-80 active:scale-[0.99] disabled:cursor-not-allowed" onClick={() => onEdit(place.id)}><strong className="block break-words text-sm">{String(place.data.name)}</strong><span className="text-xs text-slate-500">{String(place.data.address ?? '주소 미확인')} · {filter.hidden ? '삭제됨' : '정상'}</span></button>
     </li>)}</ul>
-    {page.hasMore && <button className={button} disabled={busy} onClick={() => void more()}>더 보기</button>}
+    {queryMode === 'region' && page.hasMore && <button className={button} disabled={busy} onClick={() => void more()}>더 보기</button>}
     {outcomes.length > 0 && <div role="status" className="rounded-xl bg-slate-50 p-3">
       <p className="text-sm font-bold">처리 결과 {outcomes.length}개</p><div className="my-2 flex flex-wrap gap-3 text-xs">{Object.entries(statusLabels).map(([kind, label]) => <span key={kind}>{label}: {outcomes.filter((r) => r.kind === kind).length}</span>)}</div>
       <details><summary className="cursor-pointer text-sm">장소별 결과 보기</summary><ul className="max-h-64 overflow-auto text-xs">{outcomes.map((r) => <li key={r.id} className="py-1">{r.name} — {statusLabels[r.kind]} {r.reason ?? ''}</li>)}</ul></details>

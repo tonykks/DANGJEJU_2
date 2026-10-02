@@ -24,6 +24,8 @@ import { isQuotaError } from './firestoreQuota';
 import type { CatalogDocument } from './placeAdapter';
 
 export const ADMIN_PLACE_QUERY_LIMIT = 12;
+const ADMIN_NAME_SEARCH_PAGE_SIZE = 30;
+const ADMIN_NAME_SEARCH_MAX_PAGES = 4;
 
 export type AdminFieldKind = 'text' | 'textarea' | 'url' | 'number' | 'list' | 'category' | 'region' | 'triState';
 export type AdminFieldGroup = '기본 정보' | '위치·연락처' | '이미지·운영' | '반려동물 상태·정책' | '반려동물 상세' | '편의시설' | '추천·주의';
@@ -120,17 +122,41 @@ export function placeNamePrefixBounds(value: string) {
   return { start: prefix, end: `${prefix}\uf8ff`, limit: ADMIN_PLACE_QUERY_LIMIT } as const;
 }
 
-export async function searchAdminPlacesByName(db: Firestore, value: string): Promise<CatalogDocument[]> {
+export async function searchAdminPlacesByName(
+  db: Firestore, value: string, options?: { hidden?: boolean; limit?: number },
+): Promise<CatalogDocument[]> {
   const bounds = placeNamePrefixBounds(value);
+  const resultLimit = options?.limit ?? ADMIN_PLACE_QUERY_LIMIT;
+  if (!Number.isSafeInteger(resultLimit) || resultLimit < 1) throw new Error('조회 개수는 양의 정수여야 합니다.');
+  const hidden = options?.hidden;
+  // Keep the name-only index and legacy single read without a status filter.
+  // Filtered searches read at most 120 prefix matches; narrow the prefix for more.
+  const pageSize = hidden === undefined ? resultLimit : ADMIN_NAME_SEARCH_PAGE_SIZE;
+  const maxPages = hidden === undefined ? 1 : ADMIN_NAME_SEARCH_MAX_PAGES;
   return guardedFirestoreRead(async () => {
-    const snapshot = await getDocs(query(
-      collection(db, 'places'),
-      orderBy('name'),
-      startAt(bounds.start),
-      endAt(bounds.end),
-      limit(bounds.limit),
-    ));
-    return snapshot.docs.map(documentData);
+    const results: CatalogDocument[] = [];
+    let lastDoc: QueryDocumentSnapshot | undefined;
+    for (let page = 0; page < maxPages; page++) {
+      const snapshot = await getDocs(query(
+        collection(db, 'places'),
+        orderBy('name'),
+        lastDoc ? startAfter(lastDoc) : startAt(bounds.start),
+        endAt(bounds.end),
+        limit(pageSize),
+      ));
+      for (const docSnapshot of snapshot.docs) {
+        const place = documentData(docSnapshot);
+        if (hidden === undefined || (hidden ? place.data.publicationStatus === 'HIDDEN'
+          : PUBLICATION_VISIBLE_STATUSES.includes(place.data.publicationStatus as typeof PUBLICATION_VISIBLE_STATUSES[number]))) {
+          results.push(place);
+          if (results.length === resultLimit) return results;
+        }
+      }
+      if (snapshot.docs.length < pageSize) break;
+      // A snapshot cursor also preserves documents with identical names.
+      lastDoc = snapshot.docs.at(-1);
+    }
+    return results;
   });
 }
 

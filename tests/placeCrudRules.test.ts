@@ -164,6 +164,26 @@ test('CRUD rules: atomic owner creation, mixed-state bulk, hidden visibility, 32
       assert.equal(new Set([...first.places, ...second.places].map((p) => p.id)).size, 106);
       assert.equal((await searchAdminPlacesByName(admin, '동명')).length, 12);
     });
+    await t.test('name-filtered selections hide and restore through existing transactions and rules', async () => {
+      const plans = await Promise.all(['A', 'B'].map((suffix) => buildAdminCreatePlan({ ...minDraft, name: `이름검색 검증 ${suffix}` }, randomUUID())));
+      for (const plan of plans) await createAdminPlace(admin, plan, 'active-admin');
+      await seed(plans[0].place.path, { ...plans[0].place.data, publicationStatus: 'DRAFT' });
+      const sources = await Promise.all(plans.map((plan) => getPlaceSource(admin, plan.place.id, plan.source.id)));
+      const normal = await searchAdminPlacesByName(admin, '이름검색 검증', { hidden: false });
+      assert.equal(normal.length, 2);
+      assert.ok((await batchHideAdminPlaces(admin, normal)).every((result) => result.kind === 'committed'));
+      assert.deepEqual(await searchAdminPlacesByName(admin, '이름검색 검증', { hidden: false }), []);
+      const hidden = await searchAdminPlacesByName(admin, '이름검색 검증', { hidden: true });
+      assert.equal(hidden.length, 2);
+      assert.ok(hidden.every((p) => p.data.publicationStatus === 'HIDDEN'));
+      assert.equal((await searchAdminPlacesByName(admin, '이름검색 검증')).length, 2);
+      assert.equal((await searchAdminPlacesByName(admin, '이름검색 검증', { hidden: true, limit: 1 })).length, 1);
+      assert.ok((await batchRestoreAdminPlaces(admin, hidden)).every((result) => result.kind === 'committed'));
+      const restored = await searchAdminPlacesByName(admin, '이름검색 검증', { hidden: false });
+      assert.deepEqual(restored.map((p) => p.data.publicationStatus), ['DRAFT', 'PUBLISHED']);
+      assert.deepEqual(await searchAdminPlacesByName(admin, '이름검색 검증', { hidden: true }), []);
+      assert.deepEqual(await Promise.all(plans.map((plan) => getPlaceSource(admin, plan.place.id, plan.source.id))), sources);
+    });
     await t.test('hidden KTO all 54 fields, mixed clear, cumulative clear and restore preserve audits', async () => {
       const basePlan = await buildAdminCreatePlan({ name: '편집 전', regionArea: 'EAST', serviceCategory: 'FOOD' }, randomUUID());
       const id = 'kto-12000';
