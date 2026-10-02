@@ -45,10 +45,11 @@ export default function App() {
   const navigation = useHashRoute();
   const isAdminRoute = navigation.route === 'admin-places';
   const [isLoading, setIsLoading] = useState(true);
+  const [showSlowLoading, setShowSlowLoading] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState<RegionId>('all');
   const [selectedCategory, setSelectedCategory] = useState<PlaceCategory>('all');
-  const isHome = selectedRegion === 'all' || selectedCategory === 'all';
-  const searchReady = selectedRegion !== 'all' && selectedCategory !== 'all';
+  const isHome = selectedRegion === 'all';
+  const searchReady = selectedRegion !== 'all';
 
   const {
     user, authLoading, authBusy, notice, dismissNotice, login, logout,
@@ -59,10 +60,21 @@ export default function App() {
 
   const hero = useHeroPlaces(!isAdminRoute && isHome);
   const search = usePlaceSearch(selectedRegion, selectedCategory, !isAdminRoute);
+  const regionCountSearch = usePlaceSearch(selectedRegion, 'all', !isAdminRoute && !isHome);
   const places = isHome ? hero.places : search.places;
   const placesStatus = isHome ? hero.status : (searchReady ? search.status : 'idle');
   const retryPlaces = isHome ? hero.retry : search.retry;
   const docCache = isHome ? hero.cache : search.cache;
+
+  // Keep the intro mark for first entry, but only show it again when data loading is noticeably slow.
+  useEffect(() => {
+    if (placesStatus !== 'loading' || isLoading) {
+      setShowSlowLoading(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowSlowLoading(true), 1200);
+    return () => window.clearTimeout(timer);
+  }, [placesStatus, isLoading]);
 
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [modalPlace, setModalPlace] = useState<Place | null>(null);
@@ -80,16 +92,29 @@ export default function App() {
   const filteredPlaces = places;
   const savedPlacesList = favorites.places;
 
+  // Keep the intro mark for first entry; reuse it only when a data load is noticeably slow.
+  useEffect(() => {
+    if (placesStatus !== 'loading') {
+      setShowSlowLoading(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowSlowLoading(true), 900);
+    return () => window.clearTimeout(timer);
+  }, [placesStatus]);
+
   const handleOpenDetail = async (place: Place) => {
     const ticket = ++detailGeneration.current;
-    setSelectedPlace(null); setModalPlace(null); setIsModalOpen(false);
+    setSelectedPlace(null);
+    setModalPlace(null);
+    setIsModalOpen(false);
     setDetailStatus('장소 정보를 확인하고 있습니다…');
     try {
       const enriched = await enrichPlaceWithSource(place, docCache.current);
       if (ticket !== detailGeneration.current) return;
       setModalPlace(enriched);
       setSelectedPlace(enriched);
-      setIsModalOpen(true); setDetailStatus(null);
+      setIsModalOpen(true);
+      setDetailStatus(null);
     } catch (error) {
       if (ticket !== detailGeneration.current) return;
       docCache.current.delete(place.id);
@@ -99,28 +124,25 @@ export default function App() {
 
   useEffect(() => {
     detailGeneration.current++;
-    setSelectedPlace(null); setModalPlace(null); setIsModalOpen(false); setDetailStatus(null);
+    setSelectedPlace(null);
+    setModalPlace(null);
+    setIsModalOpen(false);
+    setDetailStatus(null);
   }, [isAdminRoute, selectedRegion, selectedCategory, user?.uid]);
 
   useEffect(() => {
     const clear = () => {
       detailGeneration.current++;
-      setSelectedPlace(null); setModalPlace(null); setIsModalOpen(false); setDetailStatus(null);
-    };
-    const refresh = () => {
-      if (document.visibilityState === 'hidden') { clear(); return; }
-      if (isModalOpen && modalPlace) void handleOpenDetail(modalPlace);
-      else clear();
+      setSelectedPlace(null);
+      setModalPlace(null);
+      setIsModalOpen(false);
+      setDetailStatus(null);
     };
     window.addEventListener(PLACE_DATA_CHANGED, clear);
-    window.addEventListener('focus', refresh);
-    document.addEventListener('visibilitychange', refresh);
     return () => {
       window.removeEventListener(PLACE_DATA_CHANGED, clear);
-      window.removeEventListener('focus', refresh);
-      document.removeEventListener('visibilitychange', refresh);
     };
-  }, [isModalOpen, modalPlace, docCache]);
+  }, []);
 
   const handleResetHome = () => {
     detailGeneration.current++;
@@ -157,11 +179,7 @@ export default function App() {
   }, [isAdminRoute, authLoading, adminAccess.status, adminAccess.active, user]);
 
   const handleToggleMobileMap = () => {
-    if (isNearMap) {
-      cardSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      mapSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
+    setViewMode((current) => current === 'map' ? 'list' : 'map');
   };
 
   if (isAdminRoute) {
@@ -209,15 +227,19 @@ export default function App() {
     <div className="min-h-screen bg-[#fbf9f5] text-slate-800 flex flex-col font-sans antialiased selection:bg-amber-100 selection:text-amber-900">
       
       {/* 1. 개 아이콘 로딩 화면 */}
-      {isLoading && (
-        <LoadingScreen onLoaded={() => setIsLoading(false)} minDuration={1200} />
+      {(isLoading || showSlowLoading) && (
+        <LoadingScreen
+          key={isLoading ? 'intro-loading' : 'slow-loading'}
+          onLoaded={isLoading ? () => setIsLoading(false) : undefined}
+          minDuration={isLoading ? 900 : 650}
+          persistent={!isLoading && placesStatus === 'loading'}
+        />
       )}
 
       {/* Header */}
       <Header
         savedCount={savedPlaceIds.length}
         onOpenSaved={() => setIsSavedDrawerOpen(true)}
-        onReloadLoading={() => setIsLoading(true)}
         onResetHome={handleResetHome}
         user={user}
         authLoading={authLoading}
@@ -243,7 +265,15 @@ export default function App() {
         </div>
       )}
 
-      {detailStatus && <div role="status" className="mx-auto my-3 w-full max-w-7xl rounded-xl bg-amber-50 p-4 text-sm">{detailStatus}<button className="ml-3 font-bold" onClick={() => { detailGeneration.current++; setDetailStatus(null); }}>닫기</button></div>}
+      {detailStatus && (
+        <div role="status" className="mx-auto my-3 w-full max-w-7xl rounded-xl bg-amber-50 p-4 text-sm">
+          {detailStatus}
+          <button className="ml-3 font-bold" onClick={() => { detailGeneration.current++; setDetailStatus(null); }}>
+            닫기
+          </button>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
         
@@ -266,7 +296,7 @@ export default function App() {
         )}
         {searchReady && placesStatus === 'idle' && (
           <div className="rounded-2xl border border-amber-100 bg-white p-6 text-sm font-bold text-slate-600">
-            지역과 장소 유형을 모두 선택하면 검색됩니다.
+            지역을 선택하면 전체 장소가 표시되며, 장소 유형으로 추가 필터링할 수 있습니다.
           </div>
         )}
         {(placesStatus === 'ready' || (isHome && placesStatus === 'idle')) && <>
@@ -337,20 +367,35 @@ export default function App() {
             {CATEGORIES.map((cat) => {
               const Icon = cat.icon;
               const isActive = selectedCategory === cat.id;
+              const countSource = regionCountSearch.places;
+              const count = countSource.filter((p) => p.category === cat.id).length;
 
               return (
                 <button
                   key={cat.id}
                   id={`cat-select-btn-${cat.id}`}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`p-3 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 border ${
+                  className={`p-2.5 sm:p-3 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-between sm:justify-center gap-1.5 border ${
                     isActive
                       ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20'
                       : 'bg-[#faf8f5] border-slate-200/80 hover:border-amber-300 text-slate-700 hover:bg-amber-50/50'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                  <span>{cat.name}</span>
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                    <span className="truncate">{cat.name}</span>
+                  </div>
+                  {!isHome && regionCountSearch.status === 'ready' && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-black shrink-0 ${
+                        isActive
+                          ? 'bg-amber-300 text-slate-950'
+                          : 'bg-slate-200/70 text-slate-500'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -496,7 +541,9 @@ export default function App() {
                         place={place}
                         isSelected={selectedPlace?.id === place.id}
                         isSaved={savedPlaceIds.includes(place.id)}
-                        onSelect={(p) => setSelectedPlace(p)}
+                        onSelect={(p) => {
+                          void handleOpenDetail(p);
+                        }}
                         onToggleSave={toggleSavePlace}
                         onOpenDetail={handleOpenDetail}
                       />
@@ -554,14 +601,14 @@ export default function App() {
       </main>
 
       {/* 모바일 전용 플로팅 지도/목록 스위처 버튼 */}
-      {placesStatus === 'ready' && viewMode === 'split' && (
+      {placesStatus === 'ready' && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 lg:hidden pointer-events-none">
           <button
             onClick={handleToggleMobileMap}
             className="pointer-events-auto flex items-center gap-2 px-5 py-3 rounded-full bg-slate-900 text-white font-black text-xs shadow-2xl shadow-slate-900/40 border border-slate-700/60 hover:scale-105 active:scale-95 transition-all"
           >
             <MapPin className="w-4 h-4 text-amber-400" />
-            <span>{isNearMap ? '📋 카드 목록 위로' : `🗺️ 지도 위치 보기 (${filteredPlaces.length})`}</span>
+            <span>{viewMode === 'map' ? '📋 목록 보기' : `🗺️ 지도 보기 (${filteredPlaces.length})`}</span>
           </button>
         </div>
       )}

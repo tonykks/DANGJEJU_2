@@ -55,22 +55,55 @@ export function loadHeroPlaces(db: Firestore): Promise<CatalogDocument[]> {
 export function searchPlaces(
   db: Firestore,
   region: SearchRegion,
-  category: SearchCategory,
+  category?: SearchCategory,
 ): Promise<CatalogDocument[]> {
   if (region === 'UNKNOWN' || category === 'UNKNOWN') {
     return Promise.reject(new Error('Invalid search filters'));
   }
   return guardedFirestoreRead(async () => {
-    const snapshot = await getDocs(query(
+    if (category) {
+      const snapshot = await getDocs(query(
+        collection(db, 'places'),
+        where('publicationStatus', 'in', [...PUBLICATION_VISIBLE_STATUSES]),
+        where('search.version', '==', SEARCH_VERSION),
+        where('search.region', '==', region),
+        where('search.category', '==', category),
+        orderBy('search.petSortKey', 'desc'),
+        orderBy(documentId(), 'desc'),
+      ));
+      return snapshot.docs.map(documentData);
+    }
+
+    // Region-only search reuses the already deployed
+    // version + region + category + petSortKey composite index.
+    // Query each known category, then merge the results client-side.
+    const categories: SearchCategory[] = [
+      'ATTRACTION',
+      'CAFE',
+      'FOOD',
+      'SHOPPING',
+      'STAY',
+      'LEISURE',
+      'CULTURE',
+      'EVENT',
+    ];
+    const snapshots = await Promise.all(categories.map((searchCategory) => getDocs(query(
       collection(db, 'places'),
       where('publicationStatus', 'in', [...PUBLICATION_VISIBLE_STATUSES]),
       where('search.version', '==', SEARCH_VERSION),
       where('search.region', '==', region),
-      where('search.category', '==', category),
+      where('search.category', '==', searchCategory),
       orderBy('search.petSortKey', 'desc'),
       orderBy(documentId(), 'desc'),
-    ));
-    return snapshot.docs.map(documentData);
+    ))));
+
+    return snapshots
+      .flatMap((snapshot) => snapshot.docs.map(documentData))
+      .sort((a, b) => {
+        const aSearch = readSearchFields(a.data);
+        const bSearch = readSearchFields(b.data);
+        return (bSearch?.petSortKey ?? 0) - (aSearch?.petSortKey ?? 0);
+      });
   });
 }
 

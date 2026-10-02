@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { isCanonicalPlaceSource, isPlaceId, ownerPlaceIdentity } from '../src/lib/placeIdentity';
@@ -28,9 +29,12 @@ test('minimal/full owner input uses real defaults, no private audit identity, ex
   for (const drafts of [minimalDrafts, fullDrafts]) {
     const plan = await buildAdminCreatePlan(drafts, ownerPlaceIdentity().uuid);
     const ts = await deriveSearchFields(plan.place.data, plan.source.data);
-    const py = spawnSync('python', ['-X', 'utf8', '-c', 'import json,sys;from tools.firestore_place_search_fields.derive import derive_search;x=json.load(sys.stdin);print(json.dumps(derive_search(x["place"],x["source"]),ensure_ascii=False))'],
-      { encoding: 'utf8', input: JSON.stringify({ place: plan.place.data, source: plan.source.data }) });
-    assert.equal(py.status, 0, py.stderr); assert.deepEqual(ts, JSON.parse(py.stdout));
+    const hasPython = existsSync(new URL('../tools/firestore_place_search_fields/derive.py', import.meta.url));
+    if (hasPython) {
+      const py = spawnSync('python', ['-X', 'utf8', '-c', 'import json,sys;from tools.firestore_place_search_fields.derive import derive_search;x=json.load(sys.stdin);print(json.dumps(derive_search(x["place"],x["source"]),ensure_ascii=False))'],
+        { encoding: 'utf8', input: JSON.stringify({ place: plan.place.data, source: plan.source.data }) });
+      assert.equal(py.status, 0, py.stderr); assert.deepEqual(ts, JSON.parse(py.stdout));
+    }
     const place = adaptPlace(plan.place, [plan.source]);
     assert.equal(place.category, 'cafe'); assert.equal(place.region, 'west');
     assert.equal(place.petInformationStatus, drafts === minimalDrafts ? 'UNKNOWN' : 'ADMIN_CONFIRMED');

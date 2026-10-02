@@ -2,9 +2,11 @@ const COOLDOWN_MS = 60_000;
 const STORAGE_KEY = 'dangjeju:firestore:quota-cooldown';
 
 export function isQuotaError(error: unknown): boolean {
-  if (!error || typeof error !== 'object' || !('code' in error)) return false;
-  const code = String((error as { code: unknown }).code);
-  return code === 'resource-exhausted' || code === 'firestore/resource-exhausted';
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? String(error.code) : '';
+  if (code === 'resource-exhausted' || code === 'firestore/resource-exhausted' || code === '429') return true;
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : '';
+  return /\bRESOURCE_EXHAUSTED\b|\bQuota\s+exceeded\b/i.test(message);
 }
 
 function readCooldown(): number {

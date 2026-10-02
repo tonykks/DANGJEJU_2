@@ -4,13 +4,15 @@ import { Dog } from 'lucide-react';
 interface LoadingScreenProps {
   onLoaded?: () => void;
   minDuration?: number;
+  persistent?: boolean;
 }
 
-export default function LoadingScreen({ onLoaded, minDuration = 1000 }: LoadingScreenProps) {
+export default function LoadingScreen({ onLoaded, minDuration = 1000, persistent = false }: LoadingScreenProps) {
   const [fadeOut, setFadeOut] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
+    if (persistent) return;
     const timer = setTimeout(() => {
       setFadeOut(true);
       const hideTimer = setTimeout(() => {
@@ -21,7 +23,7 @@ export default function LoadingScreen({ onLoaded, minDuration = 1000 }: LoadingS
     }, minDuration);
 
     return () => clearTimeout(timer);
-  }, [minDuration, onLoaded]);
+  }, [minDuration, onLoaded, persistent]);
 
   if (!isVisible) return null;
 

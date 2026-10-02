@@ -35,8 +35,8 @@ export default function PlaceListItem({
   onOpenDetail,
 }: PlaceListItemProps) {
   const cat = CATEGORY_STYLES[place.category] || {
-    label: '명소',
-    badgeClass: 'bg-slate-100 text-slate-800',
+    label: '관광',
+    badgeClass: 'bg-purple-100 text-purple-800',
   };
 
   const handleClick = () => {
@@ -96,14 +96,13 @@ export default function PlaceListItem({
       {/* 5. Quick Actions: Bookmark & Chevron */}
       <div className="flex items-center gap-1 shrink-0">
         <button
-          id={`bookmark-row-btn-${place.id}`}
           onClick={(e) => {
             e.stopPropagation();
             onToggleSave(place.id);
           }}
-          className={`p-1.5 rounded-lg transition-all ${
+          className={`p-1.5 rounded-lg transition-colors ${
             isSaved
-              ? 'text-rose-500 bg-rose-50'
+              ? 'text-rose-500 hover:bg-rose-50'
               : 'text-slate-300 hover:text-rose-500 hover:bg-slate-100'
           }`}
           title="찜하기"
@@ -111,9 +110,7 @@ export default function PlaceListItem({
           <Heart className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
         </button>
 
-        <div className="p-1 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all">
-          <ChevronRight className="w-4 h-4" />
-        </div>
+        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all" />
       </div>
     </div>
   );

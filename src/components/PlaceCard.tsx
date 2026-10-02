@@ -35,13 +35,14 @@ export default function PlaceCard({
   onOpenDetail,
 }: PlaceCardProps) {
   const cat = CATEGORY_STYLES[place.category] || {
-    label: '명소',
-    badgeClass: 'bg-slate-700 text-white',
+    label: '관광지',
+    badgeClass: 'bg-purple-600 text-white',
     icon: '📍',
   };
 
   const handleCardClick = () => {
     onSelect(place);
+    onOpenDetail(place);
   };
 
   const handleDetailClick = (e: React.MouseEvent) => {
@@ -61,7 +62,7 @@ export default function PlaceCard({
           : 'border-slate-200/90 hover:border-amber-300 shadow-2xs'
       }`}
     >
-      {/* 1. Left Thumbnail Section (가로형 고정 썸네일 - 절대 압축되지 않음) */}
+      {/* 1. Left Thumbnail Section */}
       <div className="relative w-28 sm:w-32 h-[126px] sm:h-[132px] shrink-0 flex-shrink-0 self-center rounded-xl overflow-hidden bg-slate-100">
         <PlaceImage
           place={place}
@@ -72,7 +73,7 @@ export default function PlaceCard({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
 
-        {/* Category Badge on top-left of photo */}
+        {/* Category Badge */}
         <div className="absolute top-2 left-2">
           <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black shadow-xs flex items-center gap-0.5 ${cat.badgeClass}`}>
             <span>{cat.icon}</span>
@@ -80,7 +81,7 @@ export default function PlaceCard({
           </span>
         </div>
 
-        {/* Bookmark Heart Button on top-right of photo */}
+        {/* Bookmark Heart Button */}
         <button
           id={`bookmark-card-btn-${place.id}`}
           onClick={(e) => {
@@ -97,7 +98,7 @@ export default function PlaceCard({
           <Heart className={`w-3.5 h-3.5 ${isSaved ? 'fill-current' : ''}`} />
         </button>
 
-        {/* Region & Off-leash indicator on bottom of photo */}
+        {/* Region indicator on bottom of photo */}
         <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1 text-white text-[10px] font-bold drop-shadow-md">
           <MapPin className="w-3 h-3 text-amber-300 shrink-0" />
           <span className="truncate">{place.regionName}</span>
@@ -109,7 +110,7 @@ export default function PlaceCard({
         </div>
       </div>
 
-      {/* 2. Right Information Section (모든 정보가 압축 없이 여유롭게 노출) */}
+      {/* 2. Right Information Section */}
       <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
         <div>
           {/* Header: Title & Address */}
@@ -119,8 +120,8 @@ export default function PlaceCard({
             </h4>
           </div>
 
-          <p className="text-[11px] text-slate-400 mt-0.5 truncate flex items-center gap-1">
-            <span className="truncate">{place.roadAddress || place.address}</span>
+          <p className="text-[11px] text-slate-500 mt-0.5 truncate flex items-center gap-1">
+            <span className="truncate">{place.address}</span>
           </p>
 
           <div className="mt-2 flex flex-wrap gap-1">
@@ -130,14 +131,21 @@ export default function PlaceCard({
           </div>
         </div>
 
-        {/* Footer: 한 줄 소개 & 상세보기 버튼 */}
+        {/* Footer: 비고 또는 안전 정보 & 상세보기 버튼 */}
         <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
-          <p className="text-[11px] text-slate-500 truncate font-medium flex-1">
-            {place.shortDesc}
-          </p>
+          <div className="text-[11px] text-slate-500 truncate font-medium flex-1">
+            {place.petRisk ? (
+              <span className="text-amber-700 font-semibold truncate">안내: {place.petRisk}</span>
+            ) : place.petFacilities ? (
+              <span className="text-emerald-700 font-semibold truncate">시설: {place.petFacilities}</span>
+            ) : (
+              <span className="text-slate-400">한국관광공사 인증 동반 명소</span>
+            )}
+          </div>
+
           <button
             onClick={handleDetailClick}
-            className="inline-flex items-center gap-0.5 text-[11px] font-black text-amber-600 hover:text-amber-700 shrink-0 whitespace-nowrap group-hover:translate-x-0.5 transition-transform bg-amber-50/80 px-2 py-0.5 rounded-lg border border-amber-200/50"
+            className="inline-flex items-center gap-0.5 text-[11px] font-black text-amber-600 hover:text-amber-700 shrink-0 whitespace-nowrap group-hover:translate-x-0.5 transition-transform bg-amber-50/80 px-2.5 py-1 rounded-lg border border-amber-200/50"
           >
             <span>상세보기</span>
             <ChevronRight className="w-3 h-3" />

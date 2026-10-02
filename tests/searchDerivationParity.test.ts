@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { Timestamp } from 'firebase/firestore/lite';
 import { deriveSearchFields } from '../src/lib/searchDerivation.ts';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/searchDerivation.json', import.meta.url), 'utf8')) as { place: Record<string, unknown>; source: Record<string, unknown> };
+const hasPythonDerive = existsSync(new URL('../tools/firestore_place_search_fields/derive.py', import.meta.url));
 
-test('TypeScript search derivation has exact deterministic parity with the Python basis', async () => {
+test('TypeScript search derivation has exact deterministic parity with the Python basis', { skip: !hasPythonDerive }, async () => {
   const tsResult = await deriveSearchFields(fixture.place, fixture.source);
   const script = [
     'import json,sys',
@@ -37,7 +38,7 @@ test('search derivation is idempotent and effective admin inputs affect the resu
   assert.notEqual(derived.inputHash, first.inputHash);
 });
 
-test('TypeScript and Python keep parity for encoded text, sparse numeric fallbacks, and normalized clear metadata', async () => {
+test('TypeScript and Python keep parity for encoded text, sparse numeric fallbacks, and normalized clear metadata', { skip: !hasPythonDerive }, async () => {
   const script = [
     'import json,sys',
     'from tools.firestore_place_search_fields.derive import derive_search',
@@ -59,7 +60,7 @@ test('TypeScript and Python keep parity for encoded text, sparse numeric fallbac
   }
 });
 
-test('live Firestore timestamps hash exactly like the Python snapshot ISO strings', async () => {
+test('live Firestore timestamps hash exactly like the Python snapshot ISO strings', { skip: !hasPythonDerive }, async () => {
   const live = structuredClone(fixture);
   const kto = live.source.kto as Record<string, unknown>;
   kto.createdTime = Timestamp.fromDate(new Date(String(kto.createdTime)));
@@ -76,7 +77,7 @@ test('live Firestore timestamps hash exactly like the Python snapshot ISO string
   assert.deepEqual(ts, JSON.parse(python.stdout));
 });
 
-test('TypeScript and Python reject inconsistent pet provenance while allowing administrator confirmation', async () => {
+test('TypeScript and Python reject inconsistent pet provenance while allowing administrator confirmation', { skip: !hasPythonDerive }, async () => {
   const cases = [
     { status: 'UNKNOWN', collector: 'Y', pet: { acmpyNeedMtr: '목줄' }, accepted: false },
     { status: 'KTO_OVERLAY_FOUND', collector: 'N', pet: null, accepted: false },

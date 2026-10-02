@@ -38,7 +38,8 @@ export default function EventBannerSlider({ onBannerClick }: EventBannerSliderPr
 
   return (
     <div 
-      className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden shadow-md border border-slate-200/80 group select-none"
+      className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden shadow-md border border-slate-200/80 group select-none cursor-pointer"
+      onClick={() => onBannerClick?.(current)}
       onMouseEnter={() => setIsPlaying(false)}
       onMouseLeave={() => setIsPlaying(true)}
     >
@@ -123,14 +124,14 @@ export default function EventBannerSlider({ onBannerClick }: EventBannerSliderPr
 
         {/* Previous / Next Arrow Controls */}
         <button
-          onClick={handlePrev}
+          onClick={(e) => { e.stopPropagation(); handlePrev(); }}
           className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/30 hover:bg-black/60 text-white flex items-center justify-center backdrop-blur-md transition-all opacity-0 group-hover:opacity-100 z-30 border border-white/20"
           title="이전 사진"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
         <button
-          onClick={handleNext}
+          onClick={(e) => { e.stopPropagation(); handleNext(); }}
           className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/30 hover:bg-black/60 text-white flex items-center justify-center backdrop-blur-md transition-all opacity-0 group-hover:opacity-100 z-30 border border-white/20"
           title="다음 사진"
         >
@@ -142,7 +143,7 @@ export default function EventBannerSlider({ onBannerClick }: EventBannerSliderPr
           {banners.map((_, idx) => (
             <button
               key={idx}
-              onClick={() => setCurrentIndex(idx)}
+              onClick={(e) => { e.stopPropagation(); setCurrentIndex(idx); }}
               className={`h-1.5 rounded-full transition-all duration-300 ${
                 currentIndex === idx
                   ? 'w-7 bg-amber-400 shadow-sm'
