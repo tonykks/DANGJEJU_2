@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { db } from '../lib/firebase';
 import { adaptPlace, adaptPlaceDocs, type CatalogDocument } from '../lib/placeAdapter';
 import { getPlace, getPlaceSource, loadHeroPlaces, loadPlacesByIds, readSearchFields, searchPlaces } from '../lib/placeSearch';
@@ -9,105 +9,115 @@ import { PLACE_DATA_CHANGED } from '../lib/placeInvalidation';
 
 type Status = 'idle' | 'loading' | 'ready' | 'error';
 
-function useRevalidation(enabled: boolean, refresh: () => void) {
+type QueryResult = { docs: CatalogDocument[]; places: Place[] };
+type QueryEntry = { promise: Promise<QueryResult>; result?: QueryResult };
+type QueryCache = Map<string, QueryEntry>;
+
+// Share public results and pending reads, including the list and region-count query.
+const publicQueries: QueryCache = new Map();
+
+function useRevalidation(refresh: () => void) {
   useEffect(() => {
-    const revalidate = () => { if (enabled && document.visibilityState !== 'hidden') refresh(); };
-    window.addEventListener('focus', revalidate);
-    document.addEventListener('visibilitychange', revalidate);
-    window.addEventListener(PLACE_DATA_CHANGED, revalidate);
-    return () => {
-      window.removeEventListener('focus', revalidate);
-      document.removeEventListener('visibilitychange', revalidate);
-      window.removeEventListener(PLACE_DATA_CHANGED, revalidate);
-    };
-  }, [enabled, refresh]);
+    // Invalidate even while disabled/hidden; the next enabled render must read fresh data.
+    window.addEventListener(PLACE_DATA_CHANGED, refresh);
+    return () => window.removeEventListener(PLACE_DATA_CHANGED, refresh);
+  }, [refresh]);
 }
 
-function useDocCache() {
-  const cache = useRef(new Map<string, CatalogDocument>());
-  const remember = (docs: CatalogDocument[]) => {
-    for (const doc of docs) cache.current.set(doc.id, doc);
+function readCachedPlaces(queries: QueryCache, key: string, load: () => Promise<CatalogDocument[]>) {
+  const cached = queries.get(key);
+  if (cached) return cached;
+
+  const entry: QueryEntry = {
+    promise: Promise.resolve().then(load).then((docs) => {
+      const result = { docs, places: adaptPlaceDocs(docs) };
+      entry.result = result;
+      return result;
+    }).catch((error) => {
+      // An older failure must not evict a newer request after invalidation/retry.
+      if (queries.get(key) === entry) queries.delete(key);
+      throw error;
+    }),
   };
-  return { cache, remember };
+  queries.set(key, entry);
+  return entry;
 }
 
-export function useHeroPlaces(enabled: boolean) {
+function useCachedPlaces(queries: QueryCache, key: string, enabled: boolean, load: () => Promise<CatalogDocument[]>) {
   const [places, setPlaces] = useState<Place[]>([]);
   const [status, setStatus] = useState<Status>('idle');
   const [attempt, setAttempt] = useState(0);
-  const { cache, remember } = useDocCache();
-  useRevalidation(enabled, () => { cache.current.clear(); setPlaces([]); setAttempt((n) => n + 1); });
+  const cache = useRef(new Map<string, CatalogDocument>());
+  const generation = useRef(0);
+  const invalidate = useCallback(() => {
+    queries.clear();
+    cache.current.clear();
+    generation.current++;
+    setPlaces([]);
+    setAttempt((n) => n + 1);
+  }, [queries]);
+  useRevalidation(invalidate);
 
   useEffect(() => {
     cache.current.clear();
     setPlaces([]);
     if (!enabled) {
-      setPlaces([]);
       setStatus('idle');
       return;
     }
     let active = true;
-    setStatus('loading');
+    const ticket = generation.current;
+    const show = (result: QueryResult) => {
+      if (!active || ticket !== generation.current) return;
+      for (const doc of result.docs) cache.current.set(doc.id, doc);
+      setPlaces(result.places);
+      setStatus('ready');
+    };
+    const cached = queries.get(key);
+    if (cached?.result) {
+      show(cached.result);
+      return;
+    }
     if (!db) {
       setStatus('error');
       return;
     }
-    void loadHeroPlaces(db).then((docs) => {
-      if (!active) return;
-      remember(docs);
-      setPlaces(adaptPlaceDocs(docs));
-      setStatus('ready');
-    }, () => { if (active) setStatus('error'); });
+    setStatus('loading');
+    void readCachedPlaces(queries, key, load).promise.then(show, () => {
+      if (active && ticket === generation.current) setStatus('error');
+    });
     return () => { active = false; };
-  }, [enabled, attempt]);
+  }, [queries, key, enabled, load, attempt]);
 
   return {
     places, status, cache,
-    retry: () => setAttempt((n) => n + 1),
+    retry: () => {
+      queries.delete(key);
+      cache.current.clear();
+      generation.current++;
+      setPlaces([]);
+      setAttempt((n) => n + 1);
+    },
   };
+}
+
+export function useHeroPlaces(enabled: boolean) {
+  const load = useCallback(() => loadHeroPlaces(db!), []);
+  return useCachedPlaces(publicQueries, 'hero', enabled, load);
 }
 
 export function usePlaceSearch(region: RegionId, category: PlaceCategory, enabled = true) {
   const ready = enabled && region !== 'all'
     && region in UI_REGION_TO_SEARCH
     && (category === 'all' || category in UI_CATEGORY_TO_SEARCH);
-  const [places, setPlaces] = useState<Place[]>([]);
-  const [status, setStatus] = useState<Status>('idle');
-  const [attempt, setAttempt] = useState(0);
-  const { cache, remember } = useDocCache();
-  useRevalidation(enabled, () => { cache.current.clear(); setPlaces([]); setAttempt((n) => n + 1); });
-
-  useEffect(() => {
-    cache.current.clear();
-    setPlaces([]);
-    if (!ready) {
-      setPlaces([]);
-      setStatus('idle');
-      return;
-    }
-    let active = true;
-    setStatus('loading');
-    if (!db) {
-      setStatus('error');
-      return;
-    }
+  const load = useCallback(() => {
     const searchRegion = UI_REGION_TO_SEARCH[region as keyof typeof UI_REGION_TO_SEARCH] as SearchRegion;
     const searchCategory = category === 'all'
       ? undefined
       : UI_CATEGORY_TO_SEARCH[category as keyof typeof UI_CATEGORY_TO_SEARCH] as SearchCategory;
-    void searchPlaces(db, searchRegion, searchCategory).then((docs) => {
-      if (!active) return;
-      remember(docs);
-      setPlaces(adaptPlaceDocs(docs));
-      setStatus('ready');
-    }, () => { if (active) setStatus('error'); });
-    return () => { active = false; };
-  }, [ready, region, category, attempt]);
-
-  return {
-    places, status, ready, cache,
-    retry: () => setAttempt((n) => n + 1),
-  };
+    return searchPlaces(db!, searchRegion, searchCategory);
+  }, [region, category]);
+  return { ...useCachedPlaces(publicQueries, `${region}:${category}`, ready, load), ready };
 }
 
 export async function enrichPlaceWithSource(
@@ -126,34 +136,16 @@ export async function enrichPlaceWithSource(
 }
 
 export function useFavoritePlaces(placeIds: string[], enabled: boolean, accountId: string | null = null) {
-  const [places, setPlaces] = useState<Place[]>([]);
-  const [status, setStatus] = useState<Status>('idle');
-  const [attempt, setAttempt] = useState(0);
-  const { cache, remember } = useDocCache();
-  useRevalidation(enabled, () => { cache.current.clear(); setPlaces([]); setAttempt((n) => n + 1); });
-
+  const queries = useRef<QueryCache>(new Map());
+  const previousAccount = useRef(accountId);
+  // Closing the drawer preserves results; logout/account changes discard them.
   useEffect(() => {
-    cache.current.clear();
-    setPlaces([]);
-    if (!enabled) {
-      setPlaces([]);
-      setStatus('idle');
-      return;
+    if (previousAccount.current !== accountId) {
+      queries.current.clear();
+      previousAccount.current = accountId;
     }
-    let active = true;
-    setStatus('loading');
-    if (!db) {
-      setStatus('error');
-      return;
-    }
-    void loadPlacesByIds(db, placeIds).then((docs) => {
-      if (!active) return;
-      remember(docs);
-      setPlaces(adaptPlaceDocs(docs));
-      setStatus('ready');
-    }, () => { if (active) setStatus('error'); });
-    return () => { active = false; };
-  }, [enabled, attempt, accountId, placeIds.join('|')]);
-
-  return { places, status, cache, retry: () => setAttempt((n) => n + 1) };
+  }, [accountId]);
+  const idsKey = JSON.stringify(placeIds);
+  const load = useCallback(() => loadPlacesByIds(db!, JSON.parse(idsKey) as string[]), [idsKey]);
+  return useCachedPlaces(queries.current, JSON.stringify([accountId, idsKey]), enabled, load);
 }

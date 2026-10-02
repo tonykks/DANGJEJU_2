@@ -138,23 +138,11 @@ export default function App() {
       setIsModalOpen(false);
       setDetailStatus(null);
     };
-    const refresh = () => {
-      if (document.visibilityState === 'hidden') {
-        clear();
-        return;
-      }
-      if (isModalOpen && modalPlace) void handleOpenDetail(modalPlace);
-      else clear();
-    };
     window.addEventListener(PLACE_DATA_CHANGED, clear);
-    window.addEventListener('focus', refresh);
-    document.addEventListener('visibilitychange', refresh);
     return () => {
       window.removeEventListener(PLACE_DATA_CHANGED, clear);
-      window.removeEventListener('focus', refresh);
-      document.removeEventListener('visibilitychange', refresh);
     };
-  }, [isModalOpen, modalPlace, docCache]);
+  }, []);
 
   const handleResetHome = () => {
     detailGeneration.current++;
